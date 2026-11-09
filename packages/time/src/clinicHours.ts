@@ -37,7 +37,8 @@ const STANDARD_DAY: WeekdayHours = {
 /**
  * PRD §6 defaults: Monday–Saturday, open 3:00 ET (09:00), close 12:00 ET (18:00),
  * lunch 6:00–7:00 ET (12:00–13:00); closed Sunday.
- * The default closing time is still to be confirmed (PRD §22 #2).
+ * Default closing time adopted for v1 (PRD §22 #2, docs/adr/0004-default-closing-time.md);
+ * the doctor overrides it per day with `day_rules`.
  */
 export const DEFAULT_WEEKLY_HOURS: WeeklyDefaults = [
   null,
