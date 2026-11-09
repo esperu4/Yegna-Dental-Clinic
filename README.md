@@ -6,4 +6,4 @@ Offline-first scheduling PWA, Telegram bots and public website for Yegna Dental 
 - **Stack:** TypeScript · Preact + Vite + Dexie · Cloudflare Workers + Hono · D1 + Drizzle · grammY · Astro · Vitest + Playwright · pnpm workspaces.
 - **Working with Claude Code:** see [`CLAUDE.md`](CLAUDE.md) and `.claude/`.
 
-Status: M0 in progress (monorepo, `packages/time`, D1 schema + seed, CI, staging deploys).
+Status: M0 signed off (2026-11-09). M1 (PWA core, online) in progress.
