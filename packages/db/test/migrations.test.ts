@@ -45,6 +45,7 @@ describe('migrations + seed', () => {
       .map((r) => r.name);
     expect(tables).toEqual([
       'audit_log',
+      'auth_attempts',
       'blocks',
       'bookings',
       'day_rules',
@@ -63,10 +64,10 @@ describe('migrations + seed', () => {
     ]);
   });
 
-  it('seeds a demo clinic with one doctor, staff, procedures, patients, holidays and bookings', () => {
+  it('seeds a demo clinic (procedures, patients, holidays, bookings) and no users', () => {
     const count = (t: string) => Number(db.prepare(`SELECT count(*) AS n FROM ${t}`).get()!.n);
-    expect(db.prepare("SELECT count(*) AS n FROM users WHERE role = 'doctor'").get()!.n).toBe(1);
-    expect(count('users')).toBe(3);
+    // Users come only from the setup screen, which needs an empty users table.
+    expect(count('users')).toBe(0);
     expect(count('procedures')).toBe(5);
     expect(count('patients')).toBe(8);
     expect(count('holidays')).toBe(16);
@@ -75,7 +76,7 @@ describe('migrations + seed', () => {
     // sync_seq equals the highest version handed out.
     const maxVersion = db
       .prepare(
-        `SELECT max(v) AS v FROM (SELECT max(version) v FROM users UNION ALL SELECT max(version) FROM bookings
+        `SELECT max(v) AS v FROM (SELECT max(version) v FROM procedures UNION ALL SELECT max(version) FROM bookings
          UNION ALL SELECT max(version) FROM settings)`,
       )
       .get()!.v;

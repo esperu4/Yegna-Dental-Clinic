@@ -190,9 +190,21 @@ importers:
 
   apps/api:
     dependencies:
+      '@yegna/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@yegna/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4
       hono:
         specifier: ^4.13.17
         version: 4.13.17
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
     devDependencies:
       wrangler:
         specifier: 4.158.0
@@ -200,19 +212,31 @@ importers:
 
   apps/pwa:
     dependencies:
+      '@preact/signals':
+        specifier: ^2.11.4
+        version: 2.11.4(preact@11.2.0)
       '@yegna/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@yegna/time':
         specifier: workspace:*
         version: link:../../packages/time
+      dexie:
+        specifier: ^4.4.7
+        version: 4.4.7
       preact:
         specifier: ^11.2.0
         version: 11.2.0
     devDependencies:
+      '@playwright/test':
+        specifier: 1.65.0
+        version: 1.65.0
       '@preact/preset-vite':
         specifier: ^2.10.6
         version: 2.10.6(@babel/core@7.29.13(supports-color@10.2.2))(preact@11.2.0)(supports-color@10.2.2)(vite@8.3.7(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
+      fake-indexeddb:
+        specifier: 6.2.7
+        version: 6.2.7
       vite:
         specifier: ^8.3.7
         version: 8.3.7(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -255,7 +279,11 @@ importers:
         specifier: ^0.31.11
         version: 0.31.11
 
-  packages/shared: {}
+  packages/shared:
+    dependencies:
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
 
   packages/time:
     devDependencies:
@@ -1359,6 +1387,11 @@ packages:
   '@oxc-project/types@0.156.0':
     resolution: {integrity: sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw==}
 
+  '@playwright/test@1.65.0':
+    resolution: {integrity: sha512-iGURLGuKDLakSEl7Pgfv8h7f+XLT+V861Wfhz0zlEl5nyFuKUopdkFBPKqTllTUp06aOwPuH8iuUEb3yp3MpbQ==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   '@poppinss/colors@4.1.6':
     resolution: {integrity: sha512-H9xkIdFswbS8n1d6vmRd8+c10t2Qe+rZITbbDHHkQixH5+2x1FDGmi/0K+WgWiqQFKPSlIYB7jlH6Kpfn6Fleg==}
 
@@ -1373,6 +1406,14 @@ packages:
     peerDependencies:
       '@babel/core': 7.x
       vite: 2.x || 3.x || 4.x || 5.x || 6.x || 7.x || 8.x
+
+  '@preact/signals-core@1.14.5':
+    resolution: {integrity: sha512-vcRv7Ityz5JVmeiVqIluLFzT/PDS/AlhHUpw3/aUWqcVUs6bDGIPXE/6RSC4evBNWYvnniozg5Syfj33al3gkg==}
+
+  '@preact/signals@2.11.4':
+    resolution: {integrity: sha512-Rb+5RPo9gWSaHtzJeauhHxiC8KP/IF2DEPkHPEOGOnuy2wnJzRqyeLRankUCYd6ADqtxS6GnWGv6Ie343d8aYw==}
+    peerDependencies:
+      preact: '>= 10.25.0 || >=11.0.0-0'
 
   '@prefresh/babel-plugin@0.5.4':
     resolution: {integrity: sha512-GSwqHGVem7AjnOKAkmLNbAExqZZFddf9S3ySOwowGEsJR8vwNKJ7Z/262fov5wra8LkDVSmFw3CjMGRdLoCmRA==}
@@ -1944,6 +1985,9 @@ packages:
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
 
+  dexie@4.4.7:
+    resolution: {integrity: sha512-wemFiCl3DTCnfzyqepUTX1ugbYbkTrw3aEZOG7YjAOUoEQB5g5PrEywPzk5JpbX/SxqQ9IvjUpxCDIEjoOWEfA==}
+
   diff@9.0.0:
     resolution: {integrity: sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw==}
     engines: {node: '>=0.3.1'}
@@ -2163,6 +2207,10 @@ packages:
 
   extend@3.0.2:
     resolution: {integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==}
+
+  fake-indexeddb@6.2.7:
+    resolution: {integrity: sha512-g0ghQ+BmU3CSZaHup5FigEAAtCmtNyxkrmID7OAeK2qONHghw1aQ2l2T1RxmfhP1H1tEXVRWArUTGVCk5832ww==}
+    engines: {node: '>=18'}
 
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
@@ -2613,6 +2661,16 @@ packages:
   picomatch@4.0.7:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
+
+  playwright-core@1.65.0:
+    resolution: {integrity: sha512-vNSKgH6YqtN7cdT/L334zo0a+YwkrpicyrHJlWWPIm/Q+Nn2SWInil01oT0mbu96U4GgoRtCYQD9CzJQgju+lA==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.65.0:
+    resolution: {integrity: sha512-F3AMWcR44qMBt4kq+6Kb6mX7bjGXshktKFOPULd7reED6ZJWevjbNRqysP7q+AATE9kdPEZBibex1BYsvpVoeA==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   postcss@8.5.32:
     resolution: {integrity: sha512-LJlKCCAUFKOuZxipUdYw1NzIITEsPcgyOG9LkvRJvuKj/bRzbuRY0ARXvL0pWGpsZvn8jku+LMep2eU0seHp8g==}
@@ -4136,6 +4194,10 @@ snapshots:
 
   '@oxc-project/types@0.156.0': {}
 
+  '@playwright/test@1.65.0':
+    dependencies:
+      playwright: 1.65.0
+
   '@poppinss/colors@4.1.6':
     dependencies:
       kleur: 4.1.5
@@ -4166,6 +4228,13 @@ snapshots:
       - preact
       - rollup
       - supports-color
+
+  '@preact/signals-core@1.14.5': {}
+
+  '@preact/signals@2.11.4(preact@11.2.0)':
+    dependencies:
+      '@preact/signals-core': 1.14.5
+      preact: 11.2.0
 
   '@prefresh/babel-plugin@0.5.4(@babel/core@7.29.13(supports-color@10.2.2))':
     dependencies:
@@ -4791,6 +4860,8 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
+  dexie@4.4.7: {}
+
   diff@9.0.0: {}
 
   dom-serializer@2.0.0:
@@ -4999,6 +5070,8 @@ snapshots:
   expect-type@1.4.0: {}
 
   extend@3.0.2: {}
+
+  fake-indexeddb@6.2.7: {}
 
   fast-deep-equal@3.1.3: {}
 
@@ -5391,6 +5464,12 @@ snapshots:
   picomatch@2.3.2: {}
 
   picomatch@4.0.7: {}
+
+  playwright-core@1.65.0: {}
+
+  playwright@1.65.0:
+    dependencies:
+      playwright-core: 1.65.0
 
   postcss@8.5.32:
     dependencies:

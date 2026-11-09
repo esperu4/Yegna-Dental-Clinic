@@ -8,3 +8,4 @@ PRD.md
 **/.wrangler/**
 CLAUDE.md
 README.md
+.e2e-state/

@@ -80,6 +80,24 @@ export const devices = sqliteTable(
   (t) => [uniqueIndex('devices_token_hash_uq').on(t.tokenHash), index('devices_user_idx').on(t.userId)],
 );
 
+/**
+ * Server-side PIN rate limit (PRD §8, §18), counted atomically per key (a name, an IP, all
+ * enrolments, setup). Each attempt is counted before the PIN is checked; reaching the limit
+ * locks the key, and each further lockout doubles in length. Not synced.
+ * See apps/api/src/lib/rateLimit.ts and docs/adr/0005-first-doctor-setup-code.md.
+ */
+export const authAttempts = sqliteTable('auth_attempts', {
+  key: text('key').primaryKey(),
+  /** Attempts in the current round. */
+  failures: integer('failures').notNull(),
+  /** Lockouts since the last successful sign-in; sets the next lockout's length. */
+  locks: integer('locks').notNull().default(0),
+  lockedUntil: integer('locked_until'),
+  /** Random ticket of the last attempt that was let through (tells a request it was counted). */
+  lastTicket: text('last_ticket'),
+  updatedAt: integer('updated_at').notNull(),
+});
+
 export const patients = sqliteTable(
   'patients',
   {

@@ -6,7 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   // Local development (wrangler dev): local D1 only.
-  "vars": { "ENVIRONMENT": "local" },
+  "vars": { "ENVIRONMENT": "local", "PWA_ORIGIN": "http://localhost:5173" },
   "d1_databases": [
     {
       "binding": "DB",
@@ -18,7 +18,10 @@
   "env": {
     "staging": {
       "name": "yegna-api-staging",
-      "vars": { "ENVIRONMENT": "staging" },
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "PWA_ORIGIN": "https://yegna-pwa-staging.yegna-api.workers.dev",
+      },
       "d1_databases": [
         {
           "binding": "DB",

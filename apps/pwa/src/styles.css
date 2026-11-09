@@ -1,26 +1,234 @@
+/* Light green + white (PRD §8 Design). Large tap targets (≥ 48 px), readable in sunlight. */
 :root {
   --bg: #ffffff;
-  --fg: #12232a;
-  --muted: #4a5d64;
+  --surface: #f3f8f4;
+  --fg: #10241a;
+  --muted: #4b5f54;
+  --line: #d5e3d9;
+  --brand: #1f7a4d;
+  --brand-fg: #ffffff;
+  --brand-soft: #e3f2e9;
+  --danger: #b3261e;
+  --warn-bg: #fff4d6;
+  --error-bg: #fde8e7;
+  --radius: 12px;
   color-scheme: light dark;
   font-family: 'Noto Sans Ethiopic', system-ui, sans-serif;
+  font-size: 17px;
+  line-height: 1.45;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1a1f;
-    --fg: #eef4f6;
-    --muted: #a8bcc3;
+    --bg: #0e1712;
+    --surface: #16231b;
+    --fg: #eaf4ee;
+    --muted: #a6bbad;
+    --line: #2a3d31;
+    --brand: #5cc28f;
+    --brand-fg: #08130d;
+    --brand-soft: #1b3326;
+    --danger: #ff8a80;
+    --warn-bg: #3a3214;
+    --error-bg: #3d1a18;
   }
+}
+* {
+  box-sizing: border-box;
 }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
 }
-main {
-  padding: 24px 16px;
+.screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
-.env {
+.bar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 0 8px 0 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.bar h1 {
+  flex: 1;
+  margin: 0;
+  font-size: 1.15rem;
+}
+.content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+h2 {
+  font-size: 1rem;
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+.lead {
+  font-size: 1.15rem;
+  margin: 0;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 0.875rem;
+}
+.loading {
+  padding: 24px 16px;
+  color: var(--muted);
+}
+
+button {
+  font: inherit;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+}
+.primary {
+  background: var(--brand);
+  color: var(--brand-fg);
+  border-color: var(--brand);
+  font-weight: 600;
+}
+.secondary {
+  background: var(--brand-soft);
+  border-color: var(--brand-soft);
+}
+.danger {
+  color: var(--danger);
+  background: transparent;
+  border-color: var(--danger);
+}
+.link {
+  background: none;
+  border: none;
+  color: var(--brand);
+  text-decoration: underline;
+}
+.icon {
+  min-width: 48px;
+  padding: 0;
+  font-size: 1.4rem;
+  background: none;
+  border: none;
+}
+.row {
+  text-align: start;
+  background: var(--surface);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field .label {
+  font-weight: 600;
+}
+.field input {
+  font: inherit;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+}
+.field input[aria-invalid] {
+  border-color: var(--danger);
+}
+.hint {
   color: var(--muted);
   font-size: 0.875rem;
+}
+.error {
+  color: var(--danger);
+  font-size: 0.875rem;
+}
+
+.banner {
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--radius);
+}
+.banner.error {
+  background: var(--error-bg);
+  color: var(--fg);
+  font-size: 1rem;
+}
+.banner.warn {
+  background: var(--warn-bg);
+}
+
+.segmented {
+  display: flex;
+  gap: 8px;
+}
+.segmented button {
+  flex: 1;
+}
+.segmented button[aria-pressed='true'] {
+  background: var(--brand);
+  color: var(--brand-fg);
+  border-color: var(--brand);
+}
+
+.card {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }

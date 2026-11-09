@@ -18,3 +18,6 @@ test-results/
 .claude/settings.local.json
 CLOUDFLARE_*.txt
 *.secret.txt
+
+# e2e
+.e2e-state/
