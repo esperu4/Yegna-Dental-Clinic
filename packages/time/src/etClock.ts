@@ -8,8 +8,9 @@ export type EtPeriod = 'night' | 'morning' | 'midday' | 'afternoon' | 'evening';
 /**
  * The one mapping table for period labels (PRD §6).
  *
- * PROVISIONAL: the exact boundaries are open item PRD §22 #1 and must be confirmed
- * with the clinic before M1. They currently fit the PRD §6 examples only.
+ * Boundaries adopted for v1 (PRD §22 #1, docs/adr/0003-et-period-boundaries.md):
+ * ሌሊት 00:00–06:00 · ጠዋት 06:00–12:00 · ቀትር 12:00–13:00 · ከሰዓት 13:00–18:00 · ማታ 18:00–24:00.
+ * Changing them is a one-line edit here; the clinic can still ask for that during the pilot.
  * `from` is local minutes since midnight; each period runs until the next one starts.
  */
 export const ET_PERIODS: readonly { period: EtPeriod; from: number; am: string; en: string }[] = [
