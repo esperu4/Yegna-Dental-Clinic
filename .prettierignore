@@ -1,0 +1,10 @@
+pnpm-lock.yaml
+PRD.md
+**/migrations/**
+**/worker-configuration.d.ts
+.claude/
+**/dist/**
+**/.astro/**
+**/.wrangler/**
+CLAUDE.md
+README.md

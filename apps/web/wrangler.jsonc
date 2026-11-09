@@ -1,0 +1,10 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // Static site served as Workers static assets (the current form of Cloudflare Pages).
+  "name": "yegna-web",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./dist", "not_found_handling": "404-page" },
+  "env": {
+    "staging": { "name": "yegna-web-staging" },
+  },
+}

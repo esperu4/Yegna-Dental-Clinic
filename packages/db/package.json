@@ -1,0 +1,24 @@
+{
+  "name": "@yegna/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run",
+    "generate": "drizzle-kit generate",
+    "seed:sql": "node scripts/seed.ts"
+  },
+  "dependencies": {
+    "@yegna/shared": "workspace:*",
+    "@yegna/time": "workspace:*",
+    "drizzle-orm": "^0.45.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "drizzle-kit": "^0.31.11"
+  }
+}

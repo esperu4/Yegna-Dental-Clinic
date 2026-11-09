@@ -24,4 +24,10 @@ scripts/  docs/ (ADRs, runbooks)
 - Editing `packages/time/**` runs that package's tests automatically.
 
 ## Commands
-<!-- Fill in once M0 scaffolding exists: install, dev, test, typecheck, lint, deploy staging. -->
+Run from the repo root unless noted.
+- `pnpm install` · `pnpm lint` · `pnpm format` · `pnpm typecheck` · `pnpm test` · `pnpm build`
+- `pnpm --filter @yegna/time test` runs with a 100% coverage gate.
+- Schema change: edit `packages/db/src/schema.ts`, then `pnpm --filter @yegna/db generate`.
+- Local: `pnpm --filter @yegna/api db:migrate:local`, `db:seed:local`, then `dev` (API), `pnpm --filter @yegna/pwa dev`, `pnpm --filter @yegna/web dev`.
+- Staging deploys run in CI on push to `main` (`.github/workflows/ci.yml`). By hand: `db:migrate:staging` and `deploy:staging` in each app. URLs are in `docs/adr/0001-staging-on-workers-dev.md`.
+- Never seed production. Pin dependencies that are at least a day old (pnpm's `minimumReleaseAge`); don't add `minimumReleaseAgeExclude` entries.

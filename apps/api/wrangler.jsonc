@@ -1,0 +1,33 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "yegna-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // Local development (wrangler dev): local D1 only.
+  "vars": { "ENVIRONMENT": "local" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "yegna-staging",
+      "database_id": "f9befc08-c200-4856-b84d-6d648e920346",
+      "migrations_dir": "../../packages/db/migrations",
+    },
+  ],
+  "env": {
+    "staging": {
+      "name": "yegna-api-staging",
+      "vars": { "ENVIRONMENT": "staging" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "yegna-staging",
+          "database_id": "f9befc08-c200-4856-b84d-6d648e920346",
+          "migrations_dir": "../../packages/db/migrations",
+        },
+      ],
+    },
+    // production: added when the production D1 is created (after M0).
+  },
+}

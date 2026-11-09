@@ -16,3 +16,5 @@ test-results/
 
 # Personal Claude Code settings
 .claude/settings.local.json
+CLOUDFLARE_*.txt
+*.secret.txt

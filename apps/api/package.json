@@ -1,0 +1,23 @@
+{
+  "name": "@yegna/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "typecheck": "wrangler types --check && tsc -p .",
+    "types": "wrangler types",
+    "test": "vitest run",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:staging": "wrangler d1 migrations apply DB --remote --env staging",
+    "db:seed:local": "node ../../packages/db/scripts/seed.ts .wrangler/seed.sql && wrangler d1 execute DB --local --file .wrangler/seed.sql",
+    "db:seed:staging": "node ../../packages/db/scripts/seed.ts .wrangler/seed.sql && wrangler d1 execute DB --remote --env staging --file .wrangler/seed.sql",
+    "deploy:staging": "wrangler deploy --env staging"
+  },
+  "dependencies": {
+    "hono": "^4.13.17"
+  },
+  "devDependencies": {
+    "wrangler": "4.158.0"
+  }
+}

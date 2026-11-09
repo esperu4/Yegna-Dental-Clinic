@@ -24,8 +24,10 @@ if (!existsSync(path.join(pkgDir, 'package.json')) || !existsSync(path.join(proj
   process.exit(0);
 }
 
-const res = spawnSync('pnpm', ['--dir', pkgDir, 'exec', 'vitest', 'run', '--reporter=dot'], {
-  cwd: projectDir,
+// Run from inside the package (no path arguments): with shell:true on Windows,
+// a path containing spaces would be split into several arguments.
+const res = spawnSync('pnpm', ['exec', 'vitest', 'run', '--reporter=dot'], {
+  cwd: pkgDir,
   encoding: 'utf8',
   shell: process.platform === 'win32',
   timeout: 110_000,

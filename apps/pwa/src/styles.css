@@ -1,0 +1,26 @@
+:root {
+  --bg: #ffffff;
+  --fg: #12232a;
+  --muted: #4a5d64;
+  color-scheme: light dark;
+  font-family: 'Noto Sans Ethiopic', system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1a1f;
+    --fg: #eef4f6;
+    --muted: #a8bcc3;
+  }
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+main {
+  padding: 24px 16px;
+}
+.env {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
