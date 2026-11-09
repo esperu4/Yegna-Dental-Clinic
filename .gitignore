@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+coverage/
+playwright-report/
+test-results/
+*.log
+
+# Secrets (PRD §18: all secrets live in Wrangler secrets)
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+!.env.example
+
+# Personal Claude Code settings
+.claude/settings.local.json
