@@ -43,6 +43,17 @@ describe('preferences', () => {
     expect(server.patches).toEqual([{ locale: 'en' }]);
   });
 
+  it('saves quick taps in order, so the account ends on the last choice', async () => {
+    const { server, prefs, session } = await setup();
+    await Promise.all([
+      prefs.set({ locale: 'en' }),
+      prefs.set({ locale: 'am' }),
+      prefs.set({ locale: 'en' }),
+    ]);
+    expect(server.patches.at(-1)).toEqual({ locale: 'en' });
+    expect(session.current.value?.user.locale).toBe('en');
+  });
+
   it('works offline and sends the change once back online', async () => {
     const { server, prefs, db } = await setup();
     server.offline = true;
