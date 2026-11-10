@@ -162,6 +162,7 @@ const REASON_KEYS: Partial<Record<SyncRejectReason, MessageKey>> = {
   procedure_not_found: 'notice.reason.gone',
   phone_taken: 'notice.reason.phoneTaken',
   code_taken: 'procedures.error.codeTaken',
+  call_outdated: 'notice.reason.callOutdated',
 };
 
 /** Refused changes and clashes (PRD §7.5, §9: "a forbidden op is rejected with a reason shown"). */

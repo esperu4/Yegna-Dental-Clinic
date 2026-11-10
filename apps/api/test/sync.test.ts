@@ -1009,7 +1009,7 @@ describe('POST /sync: call list outcomes (PRD §8 item 8, ADR 0008)', () => {
 
   it('records a confirmed call: patient confirmed and handled, by the caller', async () => {
     const id = await staffBooking();
-    const { json } = await sync(staff, [callOp(staff, id, { call: 'confirmed' })]);
+    const { json } = await sync(staff, [callOp(staff, id, { call: 'confirmed', callFor: nextMonday(10) })]);
     expect(json.results[0]).toMatchObject({ outcome: 'applied' });
     expect(await row(id)).toMatchObject({
       status: 'pending_approval',
@@ -1024,7 +1024,7 @@ describe('POST /sync: call list outcomes (PRD §8 item 8, ADR 0008)', () => {
 
   it('records an unanswered call without handling the row', async () => {
     const id = await staffBooking();
-    await sync(staff, [callOp(staff, id, { call: 'no_answer' })]);
+    await sync(staff, [callOp(staff, id, { call: 'no_answer', callFor: nextMonday(10) })]);
     expect(await row(id)).toMatchObject({
       patient_confirmed_at: null,
       call_handled_at: null,
@@ -1034,16 +1034,51 @@ describe('POST /sync: call list outcomes (PRD §8 item 8, ADR 0008)', () => {
 
   it('refuses an outcome sent with another change, or on a booking no longer coming up', async () => {
     const id = await staffBooking();
-    const mixed = await sync(staff, [callOp(staff, id, { call: 'handled', note: 'x' })]);
+    const mixed = await sync(staff, [
+      callOp(staff, id, { call: 'handled', callFor: nextMonday(10), note: 'x' }),
+    ]);
     expect(mixed.json.results[0]).toMatchObject({ outcome: 'rejected', reason: 'invalid' });
     await sync(staff, [callOp(staff, id, { status: 'cancelled', cancelReason: 'ill' })]);
-    const late = await sync(staff, [callOp(staff, id, { call: 'handled' })]);
+    const late = await sync(staff, [callOp(staff, id, { call: 'handled', callFor: nextMonday(10) })]);
     expect(late.json.results[0]).toMatchObject({ outcome: 'rejected', reason: 'invalid_transition' });
+  });
+
+  it('refuses a call made about a time the booking no longer has', async () => {
+    const id = await staffBooking();
+    // Another phone moves it to 11:00 first; the call was about 10:00.
+    await sync(staff, [callOp(staff, id, { startAt: nextMonday(11) })]);
+    const late = await sync(staff, [callOp(staff, id, { call: 'confirmed', callFor: nextMonday(10) })]);
+    expect(late.json.results[0]).toMatchObject({ outcome: 'rejected', reason: 'call_outdated' });
+    expect(await row(id)).toMatchObject({ patient_confirmed_at: null, call_handled_at: null });
+  });
+
+  it('refuses a call outcome without the time it was about', async () => {
+    const id = await staffBooking();
+    const { json } = await sync(staff, [callOp(staff, id, { call: 'handled' })]);
+    expect(json.results[0]).toMatchObject({ outcome: 'rejected', reason: 'invalid' });
+  });
+
+  it('audits the outcome by name', async () => {
+    const id = await staffBooking();
+    await sync(staff, [callOp(staff, id, { call: 'no_answer', callFor: nextMonday(10) })]);
+    const audit = await env.DB.prepare(
+      "SELECT action FROM audit_log WHERE entity_id = ? AND action LIKE 'call:%'",
+    )
+      .bind(id)
+      .first<{ action: string }>();
+    expect(audit?.action).toBe('call:no_answer');
+  });
+
+  it('keeps the confirmation when only the length changes', async () => {
+    const id = await staffBooking();
+    await sync(staff, [callOp(staff, id, { call: 'confirmed', callFor: nextMonday(10) })]);
+    await sync(staff, [callOp(staff, id, { durationMin: 90 })]);
+    expect(await row(id)).toMatchObject({ patient_confirmed_at: expect.any(Number) });
   });
 
   it('clears the confirmation and call marks when the booking moves', async () => {
     const id = await staffBooking();
-    await sync(staff, [callOp(staff, id, { call: 'confirmed' })]);
+    await sync(staff, [callOp(staff, id, { call: 'confirmed', callFor: nextMonday(10) })]);
     await sync(staff, [callOp(staff, id, { startAt: nextMonday(11) })]);
     expect(await row(id)).toMatchObject({
       patient_confirmed_at: null,

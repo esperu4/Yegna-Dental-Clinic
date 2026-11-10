@@ -12,7 +12,7 @@ export type CallReason = 'noTelegram' | 'unapproved';
 
 export interface CallItem {
   booking: BookingRow;
-  patient: PatientRow | undefined;
+  patient: PatientRow;
   reasons: CallReason[];
 }
 
@@ -35,16 +35,26 @@ export function callList(
   const tomorrow = addDays(localDateOf(now), 1);
   const items: CallItem[] = [];
   for (const booking of bookings) {
-    if (booking.deletedAt !== null || booking.callHandledAt !== null || booking.startAt <= now) continue;
+    if (booking.deletedAt !== null || booking.startAt <= now) continue;
     if (booking.status !== 'pending_approval' && booking.status !== 'approved') continue;
     const patient = patients.get(booking.patientId);
-    const live = patient?.deletedAt == null ? patient : undefined;
+    // An erased patient can't be called (ADR 0007).
+    if (!patient || patient.deletedAt !== null) continue;
+    const handled = booking.callHandledAt;
     const reasons: CallReason[] = [];
-    if (utcToLocal(booking.startAt).date === tomorrow && !live?.telegramLinked) reasons.push('noTelegram');
-    if (booking.status === 'pending_approval' && booking.startAt - now <= UNAPPROVED_ALERT_MS) {
+    if (handled === null && utcToLocal(booking.startAt).date === tomorrow && !patient.telegramLinked) {
+      reasons.push('noTelegram');
+    }
+    // Still unapproved 24 h before: back on the list even if a call was handled earlier (PRD §10).
+    const alertFrom = booking.startAt - UNAPPROVED_ALERT_MS;
+    if (
+      booking.status === 'pending_approval' &&
+      now >= alertFrom &&
+      (handled === null || handled < alertFrom)
+    ) {
       reasons.push('unapproved');
     }
-    if (reasons.length) items.push({ booking, patient: live, reasons });
+    if (reasons.length) items.push({ booking, patient, reasons });
   }
   return items.sort((a, b) => a.booking.startAt - b.booking.startAt);
 }

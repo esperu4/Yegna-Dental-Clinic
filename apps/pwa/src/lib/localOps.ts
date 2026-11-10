@@ -60,13 +60,18 @@ export function applyLocally(current: object | undefined, op: SyncOp, role: Role
     } as never;
   }
 
-  const { call, ...fields } = op.fields as { call?: CallOutcome } & AnyRow;
+  const { call, callFor, ...fields } = op.fields as { call?: CallOutcome; callFor?: number } & AnyRow;
   const next: AnyRow = { ...row, ...fields, ...stamp, deletedAt: null };
   if (op.entity === 'bookings') {
-    // Call-list outcome (ADR 0008): the same marks the server sets.
-    if (call === 'no_answer') next.callTriedAt = op.at;
-    else if (call) Object.assign(next, { callHandledAt: op.at, callHandledBy: op.userId });
-    if (call === 'confirmed') next.patientConfirmedAt = op.at;
+    // Call-list outcome (ADR 0008): the same marks the server sets, and only where it accepts
+    // them (a booking still coming up, at the time the call was about).
+    const callable =
+      (row.status === 'pending_approval' || row.status === 'approved') && row.startAt === callFor;
+    if (call && callable) {
+      if (call === 'no_answer') next.callTriedAt = op.at;
+      else Object.assign(next, { callHandledAt: op.at, callHandledBy: op.userId });
+      if (call === 'confirmed') next.patientConfirmedAt = op.at;
+    }
     // Same rule as the server: a needs_fixing booking sent with its own time is re-checked in place.
     const recheck =
       row.status === 'needs_fixing' &&
@@ -78,14 +83,16 @@ export function applyLocally(current: object | undefined, op: SyncOp, role: Role
     if (moved) {
       const status = statusAfterReschedule(row.status as never, role);
       if (status) {
-        Object.assign(next, {
-          status,
-          clashWithId: null,
-          patientConfirmedAt: null,
-          callHandledAt: null,
-          callHandledBy: null,
-          callTriedAt: null,
-        });
+        Object.assign(next, { status, clashWithId: null });
+        // A new start time needs a new confirmation and call (ADR 0008).
+        if (op.fields.startAt !== undefined && op.fields.startAt !== row.startAt) {
+          Object.assign(next, {
+            patientConfirmedAt: null,
+            callHandledAt: null,
+            callHandledBy: null,
+            callTriedAt: null,
+          });
+        }
       }
     }
     if (op.fields.status === 'approved') Object.assign(next, { approvedBy: op.userId, approvedAt: op.at });

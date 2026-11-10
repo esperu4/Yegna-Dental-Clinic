@@ -88,10 +88,26 @@ describe('callList (PRD §8 item 8)', () => {
     expect(items.map((i) => i.booking.id)).toEqual(['tried']);
   });
 
-  it('treats a deleted or unknown patient as without Telegram', () => {
-    const deleted = new Map([['gone', { ...patient('gone', true), deletedAt: 1 }]]);
-    const items = callList([booking('b', at('2026-11-17', 9), { patientId: 'gone' })], deleted, NOW);
-    expect(items[0]).toMatchObject({ patient: undefined, reasons: ['noTelegram'] });
+  it('skips bookings of an erased patient (nobody to call)', () => {
+    const deleted = new Map([['gone', { ...patient('gone', false), deletedAt: 1 }]]);
+    expect(callList([booking('b', at('2026-11-17', 9), { patientId: 'gone' })], deleted, NOW)).toEqual([]);
+  });
+
+  it('brings a booking back when still unapproved 24 h before, even if a call was handled earlier', () => {
+    const start = at('2026-11-17', 17);
+    const handledEarly = booking('early', start, {
+      status: 'pending_approval',
+      patientId: 'phoneOnly',
+      callHandledAt: NOW - 60_000,
+    });
+    // 10:00 today: the visit is 31 h away; the earlier call handled the 📵 reason.
+    expect(callList([handledEarly], patients, NOW)).toEqual([]);
+    // 17:00 today: 24 h before, still unapproved.
+    const later = start - 24 * 60 * 60_000;
+    expect(callList([handledEarly], patients, later).map((i) => i.reasons)).toEqual([['unapproved']]);
+    // Handled again after the 24 h mark: off the list.
+    const handledLate = { ...handledEarly, callHandledAt: later };
+    expect(callList([handledLate], patients, later + 60_000)).toEqual([]);
   });
 
   it('reads bookings from now to the end of tomorrow', () => {

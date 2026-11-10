@@ -105,9 +105,9 @@ export function Home() {
 
 /** Shortcuts to the call list (everyone) and approvals (Doctor), with how many are waiting. */
 function WorkLinks() {
-  const calls = useCallList();
-  const approvals = useApprovals();
   const isDoctor = session.current.value?.user.role === 'doctor';
+  const calls = useCallList();
+  const approvals = useApprovals(isDoctor);
   const waiting = approvals?.days.reduce((n, d) => n + d.bookings.length, 0) ?? 0;
   return (
     <nav class="work-links">

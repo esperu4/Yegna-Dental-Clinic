@@ -422,6 +422,8 @@ async function decideBooking(
     if (current.status !== 'pending_approval' && current.status !== 'approved') {
       return refuse('invalid_transition');
     }
+    // Moved since the call (the version guard below also catches a move racing this op).
+    if (fields.callFor !== current.startAt) return refuse('call_outdated');
     if (call === 'no_answer') set.callTriedAt = now;
     else Object.assign(set, { callHandledAt: now, callHandledBy: userId });
     if (call === 'confirmed') set.patientConfirmedAt = now;
@@ -450,6 +452,8 @@ async function decideBooking(
   const recheck =
     current.status === 'needs_fixing' && (fields.startAt !== undefined || fields.durationMin !== undefined);
   const moved = recheck || startAt !== current.startAt || durationMin !== current.durationMin;
+  // Only a new start time needs a new confirmation and call (ADR 0008); a new length does not.
+  const newTime = startAt !== current.startAt;
   if (moved) {
     const next = statusAfterReschedule(current.status as never, role);
     if (!next) return refuse('invalid_transition');
@@ -463,11 +467,10 @@ async function decideBooking(
       durationMin,
       status: next,
       clashWithId: null,
-      // A new time must be confirmed and called about again (ADR 0008).
-      patientConfirmedAt: null,
-      callHandledAt: null,
-      callHandledBy: null,
-      callTriedAt: null,
+      // A new start time must be confirmed and called about again (ADR 0008).
+      ...(newTime
+        ? { patientConfirmedAt: null, callHandledAt: null, callHandledBy: null, callTriedAt: null }
+        : {}),
       approvedBy: next !== 'approved' ? null : stillApproved ? current.approvedBy : userId,
       approvedAt: next !== 'approved' ? null : stillApproved ? current.approvedAt : now,
     });
@@ -496,7 +499,7 @@ async function decideBooking(
         ),
       ...(moved ? [clashStatement(op.entityId, startAt, durationMin)] : []),
     ],
-    action: to ? `status:${to}` : moved ? 'move' : 'update',
+    action: to ? `status:${to}` : call ? `call:${call}` : moved ? 'move' : 'update',
     diff: { ...diffOf(current, set), ...staleMark(op, current) },
     ...(moved ? { result: clashAwareResult(op.opId, op.entityId) } : {}),
   };

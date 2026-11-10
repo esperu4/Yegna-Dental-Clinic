@@ -72,6 +72,8 @@ export class YegnaDb extends Dexie {
       settings: 'id',
       users: 'id',
     });
+    // Approvals read pending bookings by start time (PRD §8 item 7).
+    this.version(3).stores({ bookings: 'id, startAt, patientId, [status+startAt]' });
   }
 
   entity<E extends PullEntity>(entity: E): Table<LocalRow<E>, string> {

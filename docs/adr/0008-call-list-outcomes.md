@@ -12,14 +12,20 @@ the front desk and the Doctor, and works offline like every other screen.
 
 - Three synced columns on `bookings`: `call_handled_at`, `call_handled_by`, `call_tried_at`
   (migration 0005), sent to devices as `callHandledAt`, `callHandledBy`, `callTriedAt`.
-- A booking update may carry `call: 'confirmed' | 'no_answer' | 'handled'`, sent alone (not with a
-  status change or an edit), and only for a booking still coming up (`pending_approval` or
-  `approved`); otherwise it is refused (`invalid` / `invalid_transition`).
+- A booking update may carry `call: 'confirmed' | 'no_answer' | 'handled'` with `callFor`, the start
+  time the call was about. They are sent together and alone (not with a status change or an edit),
+  and only for a booking still coming up (`pending_approval` or `approved`); otherwise the op is
+  refused (`invalid` / `invalid_transition`). If the booking has moved since the call (its start is
+  no longer `callFor`), it is refused as `call_outdated`, so a confirmation made offline about
+  10:00 can never mark a booking another phone moved to 15:00.
   - `confirmed`: the patient confirmed on the phone. Sets `patient_confirmed_at`, and handles the row.
   - `no_answer`: sets `call_tried_at`; the row stays on the list, marked "No answer at …".
   - `handled`: handles the row (`call_handled_at`, `call_handled_by`).
-- A handled booking leaves everyone's call list. Moving the booking (new date, time or length)
-  clears the confirmation and all call marks, so it comes back on the list for the new time.
+- A handled booking leaves everyone's call list. A new start time clears the confirmation and all
+  call marks, so it comes back on the list for the new time; a change of length alone does not (the
+  patient still comes at the same time).
+- A booking still unapproved 24 h before its start comes back on the list even if a call was
+  handled earlier than that (PRD §10); handling it after the 24 h mark takes it off.
 - The list itself is computed on the device (`apps/pwa/src/lib/callList.ts`): tomorrow's bookings
   whose patient has no Telegram, and bookings still `pending_approval` within 24 h of their start
   (§10). Open patient requests join it with the patient bot (M5).

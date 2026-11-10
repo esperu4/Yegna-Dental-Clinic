@@ -88,11 +88,14 @@ const bookingUpdate = z
     status: z.enum(['approved', 'arrived', 'done', 'cancelled', 'no_show']),
     cancelReason: optionalText(200),
     call: z.enum(CALL_OUTCOMES),
+    /** The start time the call was about: a call made before a move must not mark the new time. */
+    callFor: z.number().int(),
   })
   .partial()
   .strict()
   .refine((f) => Object.keys(f).length > 0, 'empty')
-  .refine((f) => f.call === undefined || Object.keys(f).length === 1, 'call_with_other_change')
+  .refine((f) => (f.call === undefined) === (f.callFor === undefined), 'call_without_time')
+  .refine((f) => f.call === undefined || Object.keys(f).length === 2, 'call_with_other_change')
   .refine(
     (f) => f.status === undefined || (f.startAt === undefined && f.durationMin === undefined),
     'status_with_move',

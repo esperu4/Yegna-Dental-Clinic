@@ -68,6 +68,8 @@ export interface SyncRequest {
 
 export type SyncRejectReason =
   | 'invalid'
+  /** A call-list outcome about a time the booking no longer has (ADR 0008). */
+  | 'call_outdated'
   | 'forbidden'
   | 'not_found'
   | 'exists'

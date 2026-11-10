@@ -29,7 +29,7 @@
 import 'fake-indexeddb/auto';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { CLASH_STATUSES, type OpResult, type SyncOp, uuidv7 } from '@yegna/shared/client';
+import { CALL_OUTCOMES, CLASH_STATUSES, type OpResult, type SyncOp, uuidv7 } from '@yegna/shared/client';
 import { addDays, localDateOf, localToUtc, weekdayOf } from '@yegna/time';
 import { YegnaDb } from '../../src/lib/db.ts';
 import { type Session, createSession } from '../../src/lib/session.ts';
@@ -319,6 +319,13 @@ async function runSimulation(world: World, run: number, seed: number) {
         return () => sync.write('bookings', 'update', { status: 'cancelled', cancelReason: 'ታመመ' }, b.id);
       }
     }
+    if (roll < 0.88 && bookings.length && chance(0.5)) {
+      // A call-list outcome about the time this phone shows (ADR 0008); the booking may have moved
+      // or ended on another phone meanwhile, and then the server refuses it.
+      const b = pick(bookings);
+      const fields = { call: pick(CALL_OUTCOMES), callFor: b.startAt };
+      return () => sync.write('bookings', 'update', fields, b.id);
+    }
     if (roll < 0.88 && bookings.length) {
       const b = pick(bookings);
       if (role === 'doctor' && b.status === 'pending_approval') {
@@ -397,7 +404,7 @@ async function expectOneWinner(env: ServerEnv, run: RunRecord) {
       `SELECT id, status, start_at, duration_min, clash_with_id FROM bookings WHERE start_at >= ? AND start_at < ?`,
     )
       .bind(run.dayStart, run.dayEnd)
-      .all<Omit<ServerBooking, 'version'>>()
+      .all<Pick<ServerBooking, 'id' | 'status' | 'start_at' | 'duration_min' | 'clash_with_id'>>()
   ).results;
   const active = bookings
     .filter((b) => (CLASH_STATUSES as readonly string[]).includes(b.status))
@@ -451,7 +458,8 @@ async function checkDevice(device: Device, run: RunRecord) {
       const row = (await db.entity(entity).get(id)) as Record<string, unknown> | undefined;
       if (!row || row.deletedAt != null) continue;
       for (const [field, value] of Object.entries(fields)) {
-        if (field === 'status') continue;
+        // The device works the status and the call marks out itself (call/callFor are not fields).
+        if (field === 'status' || field === 'call' || field === 'callFor') continue;
         expect(row[field], `${device.label}: pending ${field} of ${key} shown`).toEqual(value);
       }
     }
@@ -478,6 +486,10 @@ interface ServerBooking {
   duration_min: number;
   version: number;
   clash_with_id: string | null;
+  patient_confirmed_at: number | null;
+  call_handled_at: number | null;
+  call_handled_by: string | null;
+  call_tried_at: number | null;
 }
 
 async function checkRun({ env, devices }: World, run: RunRecord) {
@@ -531,17 +543,42 @@ async function checkRun({ env, devices }: World, run: RunRecord) {
   await expectOneWinner(env, run);
   const bookings = (
     await env.DB.prepare(
-      `SELECT id, status, start_at, duration_min, version, clash_with_id FROM bookings
+      `SELECT id, status, start_at, duration_min, version, clash_with_id, patient_confirmed_at,
+         call_handled_at, call_handled_by, call_tried_at FROM bookings
        WHERE start_at >= ? AND start_at < ?`,
     )
       .bind(dayStart, dayEnd)
       .all<ServerBooking>()
   ).results;
+  // A call mark is only ever about the booking's current time (ADR 0008): every booking marked on
+  // the server has an applied call op made about its final start time.
+  for (const b of bookings.filter((x) => x.call_handled_at !== null || x.call_tried_at !== null)) {
+    const calls = written.filter(
+      ({ op }) =>
+        op.entityId === b.id &&
+        op.fields.call !== undefined &&
+        (JSON.parse(byOp.get(op.opId)!.result) as OpResult).outcome === 'applied',
+    );
+    expect(
+      calls.some(({ op }) => op.fields.callFor === b.start_at),
+      `booking ${b.id} marked by a call about another time`,
+    ).toBe(true);
+  }
+
   // Convergence: each device holds exactly the server's rows (and nothing the server refused).
   const serverBookings = new Map(
     bookings.map((b) => [
       b.id,
-      { status: b.status, startAt: b.start_at, durationMin: b.duration_min, version: b.version },
+      {
+        status: b.status,
+        startAt: b.start_at,
+        durationMin: b.duration_min,
+        version: b.version,
+        patientConfirmedAt: b.patient_confirmed_at,
+        callHandledAt: b.call_handled_at,
+        callHandledBy: b.call_handled_by,
+        callTriedAt: b.call_tried_at,
+      },
     ]),
   );
   const serverPatients = new Map(
@@ -558,7 +595,16 @@ async function checkRun({ env, devices }: World, run: RunRecord) {
     const localBookings = new Map(
       local.map((b) => [
         b.id,
-        { status: b.status, startAt: b.startAt, durationMin: b.durationMin, version: b.version },
+        {
+          status: b.status,
+          startAt: b.startAt,
+          durationMin: b.durationMin,
+          version: b.version,
+          patientConfirmedAt: b.patientConfirmedAt,
+          callHandledAt: b.callHandledAt,
+          callHandledBy: b.callHandledBy,
+          callTriedAt: b.callTriedAt,
+        },
       ]),
     );
     expect(localBookings, `${d.label} bookings`).toEqual(serverBookings);

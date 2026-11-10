@@ -3,6 +3,8 @@
  * (bookings by start time, day rules by date, holidays by date), so screens stay fast with a
  * full working copy (PRD §8 performance targets).
  */
+import Dexie from 'dexie';
+import { useEffect, useState } from 'preact/hooks';
 import type { PatientRow, ProcedureRow } from '@yegna/shared/client';
 import { addDays } from '@yegna/time';
 import { type CallItem, approvalsByDay, callList, callListRange } from './callList.ts';
@@ -64,25 +66,44 @@ export function useAllPatients(): PatientRow[] | undefined {
   return useLive(async () => live(await db.patients.toArray()), []);
 }
 
-/** The call list, kept current as the working copy changes. */
+/** The current minute, ticking: lists that depend on the time of day re-read when it changes. */
+function useMinute(): number {
+  const [minute, setMinute] = useState(() => Math.floor(Date.now() / 60_000));
+  useEffect(() => {
+    const timer = setInterval(() => setMinute(Math.floor(Date.now() / 60_000)), 15_000);
+    return () => clearInterval(timer);
+  }, []);
+  return minute;
+}
+
+/** The call list, kept current as the working copy changes and as time passes. */
 export function useCallList(): CallItem[] | undefined {
+  const minute = useMinute();
   return useLive(async () => {
     const now = Date.now();
     const [from, to] = callListRange(now);
     const bookings = await db.bookings.where('startAt').between(from, to).toArray();
     const patients = await db.patients.bulkGet([...new Set(bookings.map((b) => b.patientId))]);
     return callList(bookings, new Map(patients.flatMap((p) => (p ? [[p.id, p]] : []))), now);
-  }, []);
+  }, [minute]);
 }
 
-/** Days with bookings waiting for approval, kept current as the working copy changes. */
-export function useApprovals() {
+/**
+ * Days with bookings waiting for approval (Doctor only: `enabled` false reads nothing), kept
+ * current as the working copy changes and as time passes. Reads pending bookings by index.
+ */
+export function useApprovals(enabled = true) {
+  const minute = useMinute();
   return useLive(async () => {
+    if (!enabled) return { days: [], patients: new Map<string, PatientRow>() };
     const now = Date.now();
-    const pending = await db.bookings.where('startAt').above(now).toArray();
+    const pending = await db.bookings
+      .where('[status+startAt]')
+      .between(['pending_approval', now], ['pending_approval', Dexie.maxKey])
+      .toArray();
     const days = approvalsByDay(pending, now);
     const ids = [...new Set(days.flatMap((d) => d.bookings.map((b) => b.patientId)))];
     const patients = new Map((await db.patients.bulkGet(ids)).flatMap((p) => (p ? [[p.id, p]] : [])));
     return { days, patients };
-  }, []);
+  }, [minute, enabled]);
 }

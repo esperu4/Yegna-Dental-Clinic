@@ -16,8 +16,11 @@ export function Calls() {
   const { busy, error, run } = useAction();
   if (!items) return null;
 
-  const record = (bookingId: string, call: CallOutcome) =>
-    void run(() => sync.write('bookings', 'update', { call }, bookingId).then(() => undefined));
+  // The call is about the time shown: if the booking was moved meanwhile, the server refuses it.
+  const record = (booking: { id: string; startAt: number }, call: CallOutcome) =>
+    void run(() =>
+      sync.write('bookings', 'update', { call, callFor: booking.startAt }, booking.id).then(() => undefined),
+    );
 
   return (
     <Screen title={t('calls.title')} back={back}>
@@ -57,16 +60,16 @@ export function Calls() {
                       type="button"
                       class="primary"
                       disabled={busy}
-                      onClick={() => record(booking.id, 'confirmed')}
+                      onClick={() => record(booking, 'confirmed')}
                     >
                       {t('calls.confirmed')}
                     </button>
-                    <button type="button" disabled={busy} onClick={() => record(booking.id, 'no_answer')}>
+                    <button type="button" disabled={busy} onClick={() => record(booking, 'no_answer')}>
                       {t('calls.noAnswer')}
                     </button>
                   </>
                 ) : null}
-                <button type="button" disabled={busy} onClick={() => record(booking.id, 'handled')}>
+                <button type="button" disabled={busy} onClick={() => record(booking, 'handled')}>
                   {t('calls.handled')}
                 </button>
               </div>
