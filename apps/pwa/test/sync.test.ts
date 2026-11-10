@@ -279,7 +279,7 @@ describe('device sync: status and summary (PRD §7.6, §7.7)', () => {
   });
 
   it('remembers the last sync time when the app is reopened', async () => {
-    let clock = 7_000;
+    const clock = 7_000;
     const { db, session } = await setup();
     await createSync({ db, session, now: () => clock }).syncNow();
     const reopened = createSync({ db, session, now: () => clock });
