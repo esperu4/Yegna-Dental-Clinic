@@ -93,6 +93,49 @@ describe('device session', () => {
     expect(s.status.value).toBe('signedOut');
   });
 
+  it('never lets a refused older token wipe a newer enrolment (page and service worker)', async () => {
+    const db = new YegnaDb(`stale-${n++}`);
+    let token = 'a'.repeat(64);
+    const fetchImpl = fakeFetch((path, init) => {
+      if (path === '/enrol') return { status: 201, body: { ...enrolled, token } };
+      const sent = (init.headers as Record<string, string>).Authorization;
+      return sent === `Bearer ${'a'.repeat(64)}`
+        ? { status: 401, body: { error: 'revoked' } }
+        : { status: 200, body: {} };
+    });
+    const old = createSession({ db, fetchImpl, now: () => clock });
+    await old.enrol({ name: 'Hana', pin: '4731', deviceLabel: 'x' });
+    // The device is enrolled again (new token) while `old` still holds the first session.
+    token = 'b'.repeat(64);
+    const fresh = createSession({ db, fetchImpl, now: () => clock });
+    await fresh.enrol({ name: 'Hana', pin: '4731', deviceLabel: 'x' });
+    await expect(old.authed('/me')).rejects.toMatchObject({ code: 'revoked' });
+    expect(await db.getMeta('session')).toMatchObject({ token: 'b'.repeat(64) });
+  });
+
+  it('a wipe in one context signs the others out (service worker → page)', async () => {
+    const db = new YegnaDb(`broadcast-${n++}`);
+    const fetchImpl = fakeFetch(() => ({ status: 201, body: enrolled }));
+    const page = createSession({ db, fetchImpl, now: () => clock });
+    await page.enrol({ name: 'Hana', pin: '4731', deviceLabel: 'x' });
+    const worker = createSession({ db, fetchImpl, now: () => clock });
+    await worker.init({ use: false });
+    await worker.wipe('revoked');
+    await expect.poll(() => page.status.value).toBe('signedOut');
+    expect(page.notice.value).toBe('revoked');
+  });
+
+  it('a service-worker read does not count as use (the 24 h lock still comes)', async () => {
+    const db = new YegnaDb(`nouse-${n++}`);
+    const fetchImpl = fakeFetch(() => ({ status: 201, body: enrolled }));
+    const page = createSession({ db, fetchImpl, now: () => clock });
+    await page.enrol({ name: 'Hana', pin: '4731', deviceLabel: 'x' });
+    const before = await db.getMeta('lastActiveAt');
+    clock += 60 * 60_000;
+    await createSession({ db, fetchImpl, now: () => clock }).init({ use: false });
+    expect(await db.getMeta('lastActiveAt')).toBe(before);
+  });
+
   it('reports a network failure as offline', async () => {
     const s = createSession({
       db: new YegnaDb(`offline-${n++}`),

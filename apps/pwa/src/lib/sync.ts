@@ -40,6 +40,40 @@ export const NOTICE_TTL_MS = 30 * 86_400_000;
 
 export type SyncState = 'idle' | 'syncing' | 'offline' | 'error';
 
+/** Background Sync tag: the service worker sends the outbox when the phone is online (PRD §7.2). */
+export const OUTBOX_SYNC_TAG = 'outbox';
+const SYNC_CHANNEL = 'yegna-sync';
+/** Periodic Background Sync tag (PRD §7.3: about every 12 h, where the browser grants it). */
+export const PERIODIC_SYNC_TAG = 'yegna-sync';
+export const PERIODIC_SYNC_MS = 12 * 60 * 60_000;
+
+/**
+ * Runs `fn` while holding the device-wide sync lock, so the open app and the service worker never
+ * sync at the same time (two runs could send the same ops twice; the server would answer the
+ * second from stored results, but the cursor and notices are clearer with one run at a time).
+ */
+async function oneAtATime(fn: () => Promise<void>): Promise<void> {
+  const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+  if (!locks) return fn();
+  await locks.request('yegna-sync', fn);
+}
+
+/**
+ * Asks the browser to wake the service worker and sync once the phone is online, even if the app
+ * is closed by then (PRD §7.2 step 3, §7.3). Best effort: not every browser has Background Sync.
+ */
+export function requestBackgroundSync(): void {
+  // Only from a page the service worker controls (inside the service worker this is a no-op).
+  if (typeof navigator === 'undefined' || !navigator.serviceWorker?.controller) return;
+  void navigator.serviceWorker.ready
+    .then((registration) =>
+      (
+        registration as ServiceWorkerRegistration & { sync?: { register(tag: string): Promise<void> } }
+      ).sync?.register(OUTBOX_SYNC_TAG),
+    )
+    .catch(() => undefined);
+}
+
 type AnyRow = Record<string, unknown>;
 
 export function createSync(
@@ -69,6 +103,22 @@ export function createSync(
   let running: Promise<void> | null = null;
   let rerun = false;
 
+  // The page and the service worker each run this engine on the same device store. When one
+  // finishes a sync, the other refreshes what it shows (pill, waiting count, notices).
+  const channel =
+    typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(`${SYNC_CHANNEL}:${store.name}`);
+  if (channel) {
+    channel.onmessage = (event: MessageEvent<{ type?: string }>) => {
+      if (event.data?.type !== 'synced') return;
+      if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+        lastError.value = null;
+        offlineSince.value = null;
+        if (state.value !== 'syncing') state.value = 'idle';
+      }
+      void refresh();
+    };
+  }
+
   /** Everything `applyResponse` touches, so a response is applied all at once or not at all. */
   const responseTables = () => [
     store.meta,
@@ -78,7 +128,10 @@ export function createSync(
   ];
 
   async function refresh() {
-    lastSyncedAt.value ??= (await store.getMeta<number>(LAST_SYNC_KEY)) ?? null;
+    const storedLast = (await store.getMeta<number>(LAST_SYNC_KEY)) ?? null;
+    if (storedLast !== null && (lastSyncedAt.value === null || storedLast > lastSyncedAt.value)) {
+      lastSyncedAt.value = storedLast;
+    }
     const held = (await store.getMeta<number>(HOLD_OPS_KEY)) ?? 0;
     heldUntil.value = held > now() ? held : null;
     await store.notices
@@ -122,6 +175,10 @@ export function createSync(
       await store.outbox.add({ op });
     });
     await refresh();
+    // Ask for a Background Sync now (PRD §7.2 step 3): if the app is closed or killed before its own
+    // run finishes, the service worker sends the op. If the page sends it first, the service
+    // worker finds the outbox empty and does nothing.
+    requestBackgroundSync();
     void syncNow();
     return op;
   }
@@ -136,7 +193,7 @@ export function createSync(
       try {
         do {
           rerun = false;
-          await runOnce();
+          await oneAtATime(runOnce);
         } while (rerun && state.value === 'idle');
       } finally {
         running = null;
@@ -184,6 +241,7 @@ export function createSync(
       if (online) offlineSince.value = null;
       lastSyncedAt.value = now();
       await store.setMeta(LAST_SYNC_KEY, lastSyncedAt.value);
+      channel?.postMessage({ type: 'synced' });
       report();
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'server_error';

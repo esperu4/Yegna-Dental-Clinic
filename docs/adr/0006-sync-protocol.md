@@ -132,10 +132,29 @@ are tombstones (`deleted_at`). Bookings are never deleted; they are cancelled wi
   - Notices are dropped when their row is deleted, and after 30 days.
 - **Network:** requests time out after 30 s. A body that can't be read is a failed sync, never a
   success.
-- **When sync runs (M1):** only while the app is open: after each write, every 30 s, on `online`
-  and when the app becomes visible.
-- **Later (M2):** the service worker, Background Sync, the status pill, pruning bookings that have
-  left the window, and the randomized multi-device tests (PRD §7.10).
+- **When sync runs:**
+  - While the app is open: after each write, every 30 s, on `online` and when the app becomes
+    visible.
+  - With the app closed (M2): the service worker (`apps/pwa/src/sw.ts`) runs the same engine on
+    Background Sync (tag `outbox`, requested after every write) and on periodic sync (about every
+    12 h, where granted).
+- **Page and service worker together:**
+  - One run at a time across both, through a Web Lock (`yegna-sync`).
+  - A finished run is broadcast, so the other context refreshes its pill and notices.
+  - The service worker re-reads the stored session before every run and doesn't count as use
+    (the 24 h lock still comes).
+  - A 401 wipes the device only if the refused token is still the stored one, and the wipe is
+    broadcast so an open page signs out at once.
+- **App shell offline:**
+  - The service worker precaches this build's files (the shell as `/`, since Cloudflare redirects
+    `/index.html`) under a content-versioned cache.
+  - A new version takes over at once. Open pages reload into it when next hidden, or at once if the
+    device store was upgraded.
+  - Tested by `pnpm --filter @yegna/pwa e2e:offline` on the real Workers assets server.
+- **Status pill and notification:** PRD §7.6 and §7.7, in `apps/pwa/src/lib/syncStatus.ts`. The
+  notification shows only when no window of the app is on screen.
+- **Still to do in M2:** pruning bookings that have left the window, and the randomized
+  multi-device tests (PRD §7.10).
 
 ## Not done yet
 

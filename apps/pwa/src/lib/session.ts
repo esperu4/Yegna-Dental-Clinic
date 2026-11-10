@@ -45,15 +45,30 @@ export function createSession(deps: { db?: YegnaDb; fetchImpl?: typeof fetch; no
   /** Shown once on the enrolment screen after a remote sign-out. */
   const notice = signal<'revoked' | null>(null);
   let lastTouch = 0;
+  // A wipe in another context (the service worker after a 401) signs this one out too.
+  // One channel per device store: the page and the service worker share the store 'yegna'.
+  const channel =
+    typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(`${SESSION_CHANNEL}:${store.name}`);
+  if (channel) {
+    channel.onmessage = (event: MessageEvent<SessionMessage>) => {
+      if (event.data?.type === 'wiped' && current.value) signedOutHere(event.data.reason);
+    };
+  }
 
   function applyPrefs(user: SessionUser) {
     locale.value = user.locale;
     calendarPref.value = user.calendar;
   }
 
-  async function init(): Promise<void> {
+  /**
+   * Loads the session stored on the device. The page counts this as use (it opened); the service
+   * worker passes `{ use: false }` and re-reads before every run, so a background sync never keeps
+   * the 24 h lock away (PRD §8) and never acts on a session the page has since replaced.
+   */
+  async function init({ use = true }: { use?: boolean } = {}): Promise<void> {
     const saved = await store.getMeta<StoredSession>('session');
     if (!saved) {
+      current.value = null;
       status.value = 'signedOut';
       return;
     }
@@ -61,7 +76,7 @@ export function createSession(deps: { db?: YegnaDb; fetchImpl?: typeof fetch; no
     applyPrefs(saved.user);
     const lastActive = (await store.getMeta<number>('lastActiveAt')) ?? 0;
     status.value = now() - lastActive > INACTIVITY_LOCK_MS ? 'locked' : 'ready';
-    if (status.value === 'ready') await touch(true);
+    if (use && status.value === 'ready') await touch(true);
   }
 
   async function start(res: EnrolResponse, pin: string): Promise<void> {
@@ -130,23 +145,35 @@ export function createSession(deps: { db?: YegnaDb; fetchImpl?: typeof fetch; no
     if (now() - lastActive > INACTIVITY_LOCK_MS) status.value = 'locked';
   }
 
-  /** Remove everything this app keeps on the device. */
-  async function wipe(): Promise<void> {
+  /** Remove everything this app keeps on the device, and tell other contexts (page ⇄ service worker). */
+  async function wipe(reason: 'revoked' | null = null): Promise<void> {
     await store.transaction('rw', store.tables, async () => {
       await Promise.all(store.tables.map((t) => t.clear()));
     });
-    current.value = null;
-    status.value = 'signedOut';
+    signedOutHere(reason);
+    channel?.postMessage({ type: 'wiped', reason } satisfies SessionMessage);
   }
 
-  /** Authenticated API call. A `revoked` answer wipes the device (PRD §7.9). */
+  function signedOutHere(reason: 'revoked' | null) {
+    current.value = null;
+    status.value = 'signedOut';
+    notice.value = reason;
+  }
+
+  /**
+   * Authenticated API call. A 401 wipes the device (PRD §7.9), but only if the token that was
+   * refused is still the one stored: a page or service worker holding an older session must never
+   * wipe a newer enrolment.
+   */
   async function authed<T>(path: string, opts: Omit<ApiOptions, 'token'> = {}): Promise<T> {
+    const token = current.value?.token ?? null;
     try {
-      return await call<T>(path, { ...opts, token: current.value?.token ?? null });
+      return await call<T>(path, { ...opts, token });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        await wipe();
-        notice.value = err.code === 'revoked' ? 'revoked' : null;
+        const stored = await store.getMeta<StoredSession>('session');
+        if (stored && stored.token === token) await wipe(err.code === 'revoked' ? 'revoked' : null);
+        else if (!stored) signedOutHere(null);
       }
       throw err;
     }
@@ -163,4 +190,7 @@ export function createSession(deps: { db?: YegnaDb; fetchImpl?: typeof fetch; no
 }
 
 export type Session = ReturnType<typeof createSession>;
+
+const SESSION_CHANNEL = 'yegna-session';
+type SessionMessage = { type: 'wiped'; reason: 'revoked' | null };
 export const session = createSession();

@@ -475,7 +475,8 @@ describe('device sync: robustness', () => {
   });
 
   it('forgets notices after 30 days', async () => {
-    let clock = 1_000_000;
+    // Real time: other sync instances on this store (they share its broadcasts) use the real clock.
+    let clock = Date.now();
     const { db, session } = await setup();
     const sync = createSync({ db, session, now: () => clock });
     await sync.write('patients', 'create', patient('REJECT'));

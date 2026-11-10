@@ -10,7 +10,8 @@
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "e2e": "playwright test",
-    "deploy:staging": "vite build --mode staging && wrangler deploy --env staging"
+    "deploy:staging": "vite build --mode staging && wrangler deploy --env staging",
+    "e2e:offline": "playwright test --config playwright.offline.config.ts"
   },
   "dependencies": {
     "@preact/signals": "^2.11.4",
