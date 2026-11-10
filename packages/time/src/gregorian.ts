@@ -82,3 +82,16 @@ export function weekdayOf(iso: string): Weekday {
   // JDN 0 was a Monday, so (jdn + 1) % 7 gives 0 = Sunday.
   return ((gregorianToJdn(parseIsoDate(iso)) + 1) % 7) as Weekday;
 }
+
+/** Weekday names, indexed like `Weekday` (0 = Sunday). The clinic week starts on Monday. */
+const WEEKDAY_NAMES: Record<'am' | 'en', readonly string[]> = {
+  am: ['እሑድ', 'ሰኞ', 'ማክሰኞ', 'ረቡዕ', 'ሐሙስ', 'ዓርብ', 'ቅዳሜ'],
+  en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+};
+
+export function weekdayName(weekday: Weekday, locale: 'am' | 'en'): string {
+  return WEEKDAY_NAMES[locale][weekday]!;
+}
+
+/** Weekdays in the order the clinic lists them: Monday first, Sunday last. */
+export const CLINIC_WEEK: readonly Weekday[] = [1, 2, 3, 4, 5, 6, 0];

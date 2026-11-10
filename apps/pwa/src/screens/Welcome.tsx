@@ -4,6 +4,7 @@ import { DOCTOR_PIN_LENGTH, isTrivialPin } from '@yegna/shared/client';
 import { Field, LanguageSwitch, PinField, Screen, pinProblem, useAction } from '../components/ui.tsx';
 import { calendarPref, locale, t } from '../i18n/index.ts';
 import { api } from '../lib/api.ts';
+import { go } from '../lib/router.ts';
 import { session } from '../lib/session.ts';
 
 type Mode = 'choose' | 'setup' | 'enrol';
@@ -52,16 +53,18 @@ function SetupForm(props: { back: () => void }) {
     if (problem) return setError(t(problem));
     if (pin.length !== DOCTOR_PIN_LENGTH) return setError(t('error.pinDoctorLength'));
     if (isTrivialPin(pin)) return setError(t('error.pinTrivial'));
-    void run(() =>
-      session.setup({
+    void run(async () => {
+      await session.setup({
         code: code.trim(),
         name,
         pin,
         deviceLabel: label,
         locale: locale.value,
         calendar: calendarPref.value,
-      }),
-    );
+      });
+      // First run: walk the Doctor through setting up the clinic (PRD §8 item 2).
+      go('wizard');
+    });
   }
 
   return (

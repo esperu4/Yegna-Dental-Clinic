@@ -110,7 +110,8 @@ button:disabled {
   cursor: default;
 }
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible {
   outline: 3px solid var(--brand);
   outline-offset: 2px;
 }
@@ -155,7 +156,8 @@ input:focus-visible {
 .field .label {
   font-weight: 600;
 }
-.field input {
+.field input,
+.field select {
   font: inherit;
   min-height: 48px;
   padding: 0 12px;
@@ -231,4 +233,68 @@ input:focus-visible {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* Clinic configuration (procedures, hours, setup steps). */
+fieldset.card {
+  margin: 0;
+}
+fieldset.card legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+}
+.check input {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--brand);
+}
+.grow {
+  flex: 1;
+  min-width: 8rem;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #ffffff;
+  font-weight: 700;
+}
+.list li.inactive {
+  opacity: 0.6;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.swatch {
+  width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border: 3px solid transparent;
+}
+.swatch[aria-checked='true'] {
+  border-color: var(--fg);
+}
+.step-title {
+  color: var(--fg);
+  font-size: 1.15rem;
+}
+.actions.spread {
+  justify-content: space-between;
+  margin-top: 8px;
 }

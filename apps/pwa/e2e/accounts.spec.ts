@@ -22,6 +22,41 @@ test('Doctor sets up the clinic, adds Staff; Staff enrols; Doctor revokes the ph
   await doctor.getByLabel('PIN (6 digits)').fill('258014');
   await doctor.getByLabel('Repeat PIN').fill('258014');
   await doctor.getByRole('button', { name: 'Continue' }).click();
+
+  // First run: the setup steps (PRD §8 item 2). Language and calendar…
+  await expect(doctor.getByRole('heading', { name: 'Set up your clinic' })).toBeVisible();
+  await expect(doctor.getByText('Step 1 of 5')).toBeVisible();
+  await doctor.getByRole('button', { name: 'Next' }).click();
+  // …clinic hours: close on Saturdays…
+  await expect(doctor.getByText('Step 2 of 5')).toBeVisible();
+  const saturday = doctor.getByRole('group', { name: 'Saturday' }).first();
+  await saturday.getByRole('button', { name: 'Closed' }).click();
+  await doctor.getByRole('button', { name: 'Save' }).click();
+  await expect(doctor.getByText('Saved.')).toBeVisible();
+  await doctor.getByRole('button', { name: 'Next' }).click();
+  // …procedures: the code must be unique…
+  await doctor.getByRole('button', { name: '+ Add procedure' }).click();
+  await doctor.getByLabel('Name in Amharic').fill('ጽዳት');
+  await doctor.getByLabel('Name in English').fill('Cleaning');
+  await doctor.getByLabel('Code (1–3 letters)').fill('c');
+  await doctor.getByLabel('Usual length').selectOption('45');
+  await doctor.getByRole('button', { name: 'Save' }).click();
+  const cleaning = doctor.getByRole('listitem').filter({ hasText: 'Cleaning' });
+  await expect(cleaning.getByText('C', { exact: true })).toBeVisible();
+  await expect(cleaning.getByText('45 min')).toBeVisible();
+  await doctor.getByRole('button', { name: '+ Add procedure' }).click();
+  await doctor.getByLabel('Name in Amharic').fill('ምርመራ');
+  await doctor.getByLabel('Name in English').fill('Check-up');
+  await doctor.getByLabel('Code (1–3 letters)').fill('C');
+  await doctor.getByRole('button', { name: 'Save' }).click();
+  await expect(doctor.getByText('Another procedure already has this code.')).toBeVisible();
+  await doctor.getByLabel('Code (1–3 letters)').fill('CU');
+  await doctor.getByRole('button', { name: 'Save' }).click();
+  await expect(doctor.getByRole('listitem').filter({ hasText: 'Check-up' })).toBeVisible();
+  // …Telegram (later), notifications, done.
+  await doctor.getByRole('button', { name: 'Next' }).click();
+  await doctor.getByRole('button', { name: 'Next' }).click();
+  await doctor.getByRole('button', { name: 'Finish' }).click();
   await expect(doctor.getByRole('heading', { name: 'Today' })).toBeVisible();
 
   // Add a Staff account
@@ -67,6 +102,26 @@ test('Doctor sets up the clinic, adds Staff; Staff enrols; Doctor revokes the ph
   await expect(staff.getByText('ሐኪሟ ይህን ስልክ አስወጥተዋል። መረጃው ተሰርዟል።')).toBeVisible();
   await staff.reload();
   await expect(staff.getByRole('button', { name: 'በዚህ ስልክ ይግቡ' })).toBeVisible();
+
+  // The Doctor's procedures and hours reached the server: a second Doctor phone receives them.
+  const tablet = await (await browser.newContext()).newPage();
+  await english(tablet);
+  await tablet.getByRole('button', { name: 'Sign in on this phone' }).click();
+  await tablet.getByLabel('Your name').fill('Dr. Selam');
+  await tablet.getByLabel('PIN (4–6 digits)').fill('258014');
+  await tablet.getByLabel('Name for this phone').fill('Tablet');
+  await tablet.getByRole('button', { name: 'Continue' }).click();
+  await tablet.getByRole('button', { name: 'Settings' }).click();
+  await tablet.getByRole('button', { name: /Procedures/ }).click();
+  await expect(tablet.getByRole('listitem').filter({ hasText: 'Cleaning' })).toBeVisible();
+  await expect(tablet.getByRole('listitem').filter({ hasText: 'Check-up' })).toBeVisible();
+  await tablet.goBack();
+  await tablet.getByRole('button', { name: /Clinic hours/ }).click();
+  const tabletSaturday = tablet.getByRole('group', { name: 'Saturday' }).first();
+  await expect(tabletSaturday.getByRole('button', { name: 'Closed' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
 });
 
 test('the app is in Amharic by default', async ({ page }) => {

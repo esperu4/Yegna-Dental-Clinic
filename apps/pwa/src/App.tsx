@@ -4,6 +4,7 @@ import { route } from './lib/router.ts';
 import { session } from './lib/session.ts';
 import { sync } from './lib/sync.ts';
 import { Devices, Users } from './screens/Admin.tsx';
+import { ClinicHours, Procedures, SetupWizard } from './screens/ClinicSetup.tsx';
 import { Home } from './screens/Home.tsx';
 import { Lock } from './screens/Lock.tsx';
 import { Settings } from './screens/Settings.tsx';
@@ -48,6 +49,12 @@ export function App() {
       return isDoctor ? <Users /> : <Home />;
     case 'devices':
       return isDoctor ? <Devices /> : <Home />;
+    case 'procedures':
+      return isDoctor ? <Procedures /> : <Home />;
+    case 'hours':
+      return isDoctor ? <ClinicHours /> : <Home />;
+    case 'wizard':
+      return isDoctor ? <SetupWizard /> : <Home />;
     default:
       return <Home />;
   }

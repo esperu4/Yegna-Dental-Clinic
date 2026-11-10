@@ -1,8 +1,8 @@
 /** Tiny hash router: works offline and needs no server rewrites. */
 import { signal } from '@preact/signals';
 
-export type Route = 'home' | 'settings' | 'users' | 'devices';
-const ROUTES: readonly Route[] = ['home', 'settings', 'users', 'devices'];
+export type Route = 'home' | 'settings' | 'users' | 'devices' | 'procedures' | 'hours' | 'wizard';
+const ROUTES: readonly Route[] = ['home', 'settings', 'users', 'devices', 'procedures', 'hours', 'wizard'];
 
 function parse(): Route {
   const name = location.hash.replace(/^#\/?/, '') as Route;

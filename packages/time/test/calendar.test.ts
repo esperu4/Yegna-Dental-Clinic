@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CLINIC_WEEK,
   addDays,
   daysInEthiopianMonth,
   daysInGregorianMonth,
@@ -13,6 +14,7 @@ import {
   parseIsoDate,
   toEthiopian,
   toGregorian,
+  weekdayName,
   weekdayOf,
 } from '../src/index.ts';
 
@@ -124,5 +126,21 @@ describe('Gregorian helpers', () => {
     expect(weekdayOf('2026-11-09')).toBe(1); // Monday
     expect(weekdayOf('2026-11-08')).toBe(0); // Sunday
     expect(formatIsoDate({ year: 33, month: 1, day: 2 })).toBe('0033-01-02');
+  });
+});
+
+describe('weekday names', () => {
+  it('names weekdays in both languages, Monday first in the clinic week', () => {
+    expect(CLINIC_WEEK.map((d) => weekdayName(d, 'en'))).toEqual([
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ]);
+    expect(weekdayName(weekdayOf('2026-11-09'), 'am')).toBe('ሰኞ');
+    expect(weekdayName(0, 'am')).toBe('እሑድ');
   });
 });
