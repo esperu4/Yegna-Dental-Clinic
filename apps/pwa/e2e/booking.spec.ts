@@ -3,52 +3,16 @@
  * number in ≤ 3 taps and < 30 s. Recorded (video) and timed.
  */
 import { type Page, expect, test } from '@playwright/test';
+import { doctorPhone, openDay } from './helpers.ts';
 
-const SETUP_CODE = 'e2e-setup-code-0123456789abcdef0123456789';
-const DOCTOR = { name: 'Dr. Selam', pin: '258014' };
 const MAX_TAPS = 3;
 const MAX_MS = 30_000;
 
 test.use({ video: 'on' });
 
-/** Signs the Doctor in on a fresh phone: sets the clinic up if no one has, else enrols. */
-async function doctorPhone(page: Page) {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'English' }).click();
-  const setup = page.getByRole('button', { name: 'Set up the clinic (Doctor)' });
-  const enrol = page.getByRole('button', { name: 'Sign in on this phone' });
-  await expect(enrol).toBeVisible();
-  if (await setup.isVisible()) {
-    await setup.click();
-    await page.getByLabel('Setup code').fill(SETUP_CODE);
-    await page.getByLabel('Your name').fill(DOCTOR.name);
-    await page.getByLabel('PIN (6 digits)').fill(DOCTOR.pin);
-    await page.getByLabel('Repeat PIN').fill(DOCTOR.pin);
-    await page.getByLabel('Name for this phone').fill('Doctor phone');
-    await page.getByRole('button', { name: 'Continue' }).click();
-    await page.getByRole('button', { name: 'Skip for now' }).click();
-  } else {
-    await enrol.click();
-    await page.getByLabel('Your name').fill(DOCTOR.name);
-    await page.getByLabel('PIN (4–6 digits)').fill(DOCTOR.pin);
-    await page.getByLabel('Name for this phone').fill('Booking test phone');
-    await page.getByRole('button', { name: 'Continue' }).click();
-  }
-  await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
-}
-
-/** Moves the Today view to the next day the clinic is open (never today, so the hours are free). */
-async function nextOpenDay(page: Page) {
-  for (let i = 0; i < 8; i++) {
-    await page.getByRole('button', { name: 'Next day' }).click();
-    if (!(await page.getByText('The clinic is closed this day.').isVisible())) return;
-  }
-  throw new Error('no open day within a week');
-}
-
 test('a returning patient is booked by phone in ≤ 3 taps and < 30 s', async ({ page }, testInfo) => {
-  await doctorPhone(page);
-  await nextOpenDay(page);
+  await doctorPhone(page, 'Booking test phone');
+  await openDay(page, 1);
 
   // First visit: a new patient, typed in full.
   await page.getByRole('button', { name: 'New booking' }).click();
