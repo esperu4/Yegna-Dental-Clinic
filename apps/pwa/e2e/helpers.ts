@@ -30,8 +30,17 @@ export async function doctorPhone(page: Page, label = 'Test phone') {
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
 }
 
-/** A Staff phone for a new Staff account the Doctor adds from `doctor`'s Settings. */
-export async function staffPhone(browser: Browser, doctor: Page, name: string, pin: string): Promise<Page> {
+/**
+ * A Staff phone for a new Staff account the Doctor adds from `doctor`'s Settings. `prepare` runs
+ * on the new page before it opens the app (e.g. to set its clock).
+ */
+export async function staffPhone(
+  browser: Browser,
+  doctor: Page,
+  name: string,
+  pin: string,
+  prepare?: (page: Page) => Promise<void>,
+): Promise<Page> {
   await doctor.getByRole('button', { name: 'Settings' }).click();
   await doctor.getByRole('button', { name: /Staff accounts/ }).click();
   await doctor.getByLabel('Your name').fill(name);
@@ -42,6 +51,7 @@ export async function staffPhone(browser: Browser, doctor: Page, name: string, p
   await doctor.goBack();
 
   const staff = await (await browser.newContext()).newPage();
+  await prepare?.(staff);
   await staff.goto('/');
   await staff.getByRole('button', { name: 'English' }).click();
   await staff.getByRole('button', { name: 'Sign in on this phone' }).click();

@@ -13,6 +13,7 @@
 import { type SQL, and, count, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { bookings, patients, procedures, syncOps, syncSeq } from '@yegna/db';
 import {
+  type CallOutcome,
   type OpResult,
   type Role,
   type SyncOp,
@@ -415,6 +416,17 @@ async function decideBooking(
   const refuse = (reason: SyncRejectReason): Decision => ({ reject: reason, redact: erased });
   const set: Row = {};
 
+  // A call-list outcome (ADR 0008), on a booking still coming up (sent alone, see sync.ts).
+  const call = fields.call as CallOutcome | undefined;
+  if (call !== undefined) {
+    if (current.status !== 'pending_approval' && current.status !== 'approved') {
+      return refuse('invalid_transition');
+    }
+    if (call === 'no_answer') set.callTriedAt = now;
+    else Object.assign(set, { callHandledAt: now, callHandledBy: userId });
+    if (call === 'confirmed') set.patientConfirmedAt = now;
+  }
+
   const to = fields.status as string | undefined;
   if (to !== undefined) {
     const error = checkStatusChange({
@@ -451,6 +463,11 @@ async function decideBooking(
       durationMin,
       status: next,
       clashWithId: null,
+      // A new time must be confirmed and called about again (ADR 0008).
+      patientConfirmedAt: null,
+      callHandledAt: null,
+      callHandledBy: null,
+      callTriedAt: null,
       approvedBy: next !== 'approved' ? null : stillApproved ? current.approvedBy : userId,
       approvedAt: next !== 'approved' ? null : stillApproved ? current.approvedAt : now,
     });

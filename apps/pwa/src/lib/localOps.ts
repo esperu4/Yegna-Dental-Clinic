@@ -2,7 +2,13 @@
  * Applying an op to the device's copy of a row (PRD §7.2). Pure, so the same function serves
  * the optimistic write and the replay of still-pending ops on top of fresh server rows.
  */
-import { type Role, type SyncOp, statusAfterReschedule, statusOnCreate } from '@yegna/shared/client';
+import {
+  type CallOutcome,
+  type Role,
+  type SyncOp,
+  statusAfterReschedule,
+  statusOnCreate,
+} from '@yegna/shared/client';
 
 type AnyRow = Record<string, unknown>;
 
@@ -19,6 +25,9 @@ function createDefaults(op: SyncOp, role: Role): AnyRow {
         approvedBy: status === 'approved' ? op.userId : null,
         approvedAt: status === 'approved' ? op.at : null,
         patientConfirmedAt: null,
+        callHandledAt: null,
+        callHandledBy: null,
+        callTriedAt: null,
         source: 'app',
         cancelReason: null,
         clashWithId: null,
@@ -51,8 +60,13 @@ export function applyLocally(current: object | undefined, op: SyncOp, role: Role
     } as never;
   }
 
-  const next: AnyRow = { ...row, ...op.fields, ...stamp, deletedAt: null };
+  const { call, ...fields } = op.fields as { call?: CallOutcome } & AnyRow;
+  const next: AnyRow = { ...row, ...fields, ...stamp, deletedAt: null };
   if (op.entity === 'bookings') {
+    // Call-list outcome (ADR 0008): the same marks the server sets.
+    if (call === 'no_answer') next.callTriedAt = op.at;
+    else if (call) Object.assign(next, { callHandledAt: op.at, callHandledBy: op.userId });
+    if (call === 'confirmed') next.patientConfirmedAt = op.at;
     // Same rule as the server: a needs_fixing booking sent with its own time is re-checked in place.
     const recheck =
       row.status === 'needs_fixing' &&
@@ -63,7 +77,16 @@ export function applyLocally(current: object | undefined, op: SyncOp, role: Role
       (op.fields.durationMin !== undefined && op.fields.durationMin !== row.durationMin);
     if (moved) {
       const status = statusAfterReschedule(row.status as never, role);
-      if (status) Object.assign(next, { status, clashWithId: null });
+      if (status) {
+        Object.assign(next, {
+          status,
+          clashWithId: null,
+          patientConfirmedAt: null,
+          callHandledAt: null,
+          callHandledBy: null,
+          callTriedAt: null,
+        });
+      }
     }
     if (op.fields.status === 'approved') Object.assign(next, { approvedBy: op.userId, approvedAt: op.at });
   }

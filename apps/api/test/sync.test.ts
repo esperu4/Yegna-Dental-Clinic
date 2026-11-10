@@ -990,3 +990,66 @@ describe('query plans (PRD §19: no full-table scans on hot paths)', () => {
     },
   );
 });
+
+describe('POST /sync: call list outcomes (PRD §8 item 8, ADR 0008)', () => {
+  async function staffBooking() {
+    const p = newPatient(staff);
+    const b = newBooking(staff, p.entityId, nextMonday(10));
+    await sync(staff, [p, b]);
+    return b.entityId;
+  }
+  const callOp = (as: EnrolResponse, id: string, fields: Record<string, unknown>) =>
+    op(as, 'bookings', 'update', fields, { entityId: id });
+  const row = (id: string) =>
+    env.DB.prepare(
+      'SELECT status, patient_confirmed_at, call_handled_at, call_handled_by, call_tried_at FROM bookings WHERE id = ?',
+    )
+      .bind(id)
+      .first<Record<string, unknown>>();
+
+  it('records a confirmed call: patient confirmed and handled, by the caller', async () => {
+    const id = await staffBooking();
+    const { json } = await sync(staff, [callOp(staff, id, { call: 'confirmed' })]);
+    expect(json.results[0]).toMatchObject({ outcome: 'applied' });
+    expect(await row(id)).toMatchObject({
+      status: 'pending_approval',
+      patient_confirmed_at: expect.any(Number),
+      call_handled_at: expect.any(Number),
+      call_handled_by: staff.user.id,
+      call_tried_at: null,
+    });
+    const pulled = json.changes.bookings?.find((b) => b.id === id);
+    expect(pulled).toMatchObject({ callHandledBy: staff.user.id, callTriedAt: null });
+  });
+
+  it('records an unanswered call without handling the row', async () => {
+    const id = await staffBooking();
+    await sync(staff, [callOp(staff, id, { call: 'no_answer' })]);
+    expect(await row(id)).toMatchObject({
+      patient_confirmed_at: null,
+      call_handled_at: null,
+      call_tried_at: expect.any(Number),
+    });
+  });
+
+  it('refuses an outcome sent with another change, or on a booking no longer coming up', async () => {
+    const id = await staffBooking();
+    const mixed = await sync(staff, [callOp(staff, id, { call: 'handled', note: 'x' })]);
+    expect(mixed.json.results[0]).toMatchObject({ outcome: 'rejected', reason: 'invalid' });
+    await sync(staff, [callOp(staff, id, { status: 'cancelled', cancelReason: 'ill' })]);
+    const late = await sync(staff, [callOp(staff, id, { call: 'handled' })]);
+    expect(late.json.results[0]).toMatchObject({ outcome: 'rejected', reason: 'invalid_transition' });
+  });
+
+  it('clears the confirmation and call marks when the booking moves', async () => {
+    const id = await staffBooking();
+    await sync(staff, [callOp(staff, id, { call: 'confirmed' })]);
+    await sync(staff, [callOp(staff, id, { startAt: nextMonday(11) })]);
+    expect(await row(id)).toMatchObject({
+      patient_confirmed_at: null,
+      call_handled_at: null,
+      call_handled_by: null,
+      call_tried_at: null,
+    });
+  });
+});

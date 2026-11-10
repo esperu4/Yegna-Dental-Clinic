@@ -7,6 +7,8 @@ import { sync } from './lib/sync.ts';
 import { Devices, Users } from './screens/Admin.tsx';
 import { ClinicHours, Procedures, SetupWizard } from './screens/ClinicSetup.tsx';
 import { Holidays } from './screens/Holidays.tsx';
+import { Approvals } from './screens/Approvals.tsx';
+import { Calls } from './screens/Calls.tsx';
 import { Home } from './screens/Today.tsx';
 import { Lock } from './screens/Lock.tsx';
 import { Settings } from './screens/Settings.tsx';
@@ -53,6 +55,10 @@ export function App() {
   }
   const isDoctor = session.current.value?.user.role === 'doctor';
   switch (route.value) {
+    case 'calls':
+      return <Calls />;
+    case 'approvals':
+      return isDoctor ? <Approvals /> : <Home />;
     case 'settings':
       return <Settings />;
     case 'users':

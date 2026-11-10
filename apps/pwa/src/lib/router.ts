@@ -2,9 +2,20 @@
 import { signal } from '@preact/signals';
 
 export type Route =
-  'home' | 'settings' | 'users' | 'devices' | 'procedures' | 'hours' | 'holidays' | 'wizard';
+  | 'home'
+  | 'calls'
+  | 'approvals'
+  | 'settings'
+  | 'users'
+  | 'devices'
+  | 'procedures'
+  | 'hours'
+  | 'holidays'
+  | 'wizard';
 const ROUTES: readonly Route[] = [
   'home',
+  'calls',
+  'approvals',
   'settings',
   'users',
   'devices',

@@ -5,7 +5,7 @@
  */
 import { GRID_STEP_MIN, parseIsoDate } from '@yegna/time';
 import { z } from 'zod';
-import { PATIENT_NOTE_MAX } from './enums.ts';
+import { CALL_OUTCOMES, PATIENT_NOTE_MAX } from './enums.ts';
 import { uuidv7Schema } from './auth.ts';
 import { isUuidv7 } from './ids.ts';
 import { normalizePhone } from './phone.ts';
@@ -75,7 +75,10 @@ const bookingCreate = z
   })
   .strict();
 
-/** A booking update either changes the status (a card action) or edits the booking, never both. */
+/**
+ * A booking update either changes the status (a card action), records a call-list outcome, or
+ * edits the booking; never two of these at once.
+ */
 const bookingUpdate = z
   .object({
     procedureId: uuidv7Schema.nullable(),
@@ -84,10 +87,12 @@ const bookingUpdate = z
     note: optionalText(PATIENT_NOTE_MAX),
     status: z.enum(['approved', 'arrived', 'done', 'cancelled', 'no_show']),
     cancelReason: optionalText(200),
+    call: z.enum(CALL_OUTCOMES),
   })
   .partial()
   .strict()
   .refine((f) => Object.keys(f).length > 0, 'empty')
+  .refine((f) => f.call === undefined || Object.keys(f).length === 1, 'call_with_other_change')
   .refine(
     (f) => f.status === undefined || (f.startAt === undefined && f.durationMin === undefined),
     'status_with_move',

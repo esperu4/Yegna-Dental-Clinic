@@ -17,7 +17,14 @@ import { SyncPill } from '../components/SyncPill.tsx';
 import { BlockList, BlockSheet, DayRuleSheet } from '../components/doctorDay.tsx';
 import { BookingDetails, NoticeList, StatusChip } from '../components/bookingCards.tsx';
 import { locale, t } from '../i18n/index.ts';
-import { useDayPlan, usePatients, useProcedures, useWeekPlans } from '../lib/dayData.ts';
+import {
+  useApprovals,
+  useCallList,
+  useDayPlan,
+  usePatients,
+  useProcedures,
+  useWeekPlans,
+} from '../lib/dayData.ts';
 import { formatDate, formatTime } from '../lib/format.ts';
 import { go } from '../lib/router.ts';
 import { session } from '../lib/session.ts';
@@ -52,6 +59,7 @@ export function Home() {
         </button>
       </header>
       <div class="content">
+        <WorkLinks />
         <NoticeList onMove={(booking, patient) => setSheet({ kind: 'move', booking, patient })} />
         {view === 'day' ? (
           <DayView
@@ -92,6 +100,26 @@ export function Home() {
       ) : null}
       {sheet ? <BookingSheet mode={sheet} onClose={() => setSheet(null)} /> : null}
     </main>
+  );
+}
+
+/** Shortcuts to the call list (everyone) and approvals (Doctor), with how many are waiting. */
+function WorkLinks() {
+  const calls = useCallList();
+  const approvals = useApprovals();
+  const isDoctor = session.current.value?.user.role === 'doctor';
+  const waiting = approvals?.days.reduce((n, d) => n + d.bookings.length, 0) ?? 0;
+  return (
+    <nav class="work-links">
+      <button type="button" class="secondary" onClick={() => go('calls')}>
+        {t('calls.nav', { n: calls?.length ?? 0 })}
+      </button>
+      {isDoctor ? (
+        <button type="button" class="secondary" onClick={() => go('approvals')}>
+          {t('approvals.nav', { n: waiting })}
+        </button>
+      ) : null}
+    </nav>
   );
 }
 

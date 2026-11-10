@@ -40,6 +40,13 @@ export const CLASH_STATUSES = [
 export const BOOKING_SOURCES = ['app', 'import'] as const;
 export type BookingSource = (typeof BOOKING_SOURCES)[number];
 
+/**
+ * Call list outcomes (PRD §8 item 8, ADR 0008): the patient confirmed on the phone, did not
+ * answer (the row stays, marked tried), or the row was handled otherwise.
+ */
+export const CALL_OUTCOMES = ['confirmed', 'no_answer', 'handled'] as const;
+export type CallOutcome = (typeof CALL_OUTCOMES)[number];
+
 export const PATIENT_REQUEST_KINDS = ['reschedule', 'cancel'] as const;
 export const PATIENT_REQUEST_STATUSES = ['open', 'handled'] as const;
 

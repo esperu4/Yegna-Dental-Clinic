@@ -116,6 +116,10 @@ export interface BookingRow extends SyncMeta {
   approvedBy: string | null;
   approvedAt: number | null;
   patientConfirmedAt: number | null;
+  /** Call list (ADR 0008): handled by the front desk (and by whom), and the last unanswered call. */
+  callHandledAt: number | null;
+  callHandledBy: string | null;
+  callTriedAt: number | null;
   source: BookingSource;
   cancelReason: string | null;
   clashWithId: string | null;

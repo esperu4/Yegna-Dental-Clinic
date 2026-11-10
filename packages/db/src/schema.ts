@@ -160,6 +160,10 @@ export const bookings = sqliteTable(
     approvedBy: text('approved_by'),
     approvedAt: integer('approved_at'),
     patientConfirmedAt: integer('patient_confirmed_at'),
+    /** Call list (PRD §8 item 8, ADR 0008): handled by the front desk, and the last unanswered call. */
+    callHandledAt: integer('call_handled_at'),
+    callHandledBy: text('call_handled_by'),
+    callTriedAt: integer('call_tried_at'),
     source: text('source', { enum: BOOKING_SOURCES }).notNull().default('app'),
     importRowId: text('import_row_id'),
     cancelReason: text('cancel_reason'),

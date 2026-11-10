@@ -647,3 +647,10 @@ a.button {
 .pill-details p {
   margin: 0;
 }
+
+/* Shortcuts above the day: call list (everyone) and approvals (Doctor). */
+.work-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

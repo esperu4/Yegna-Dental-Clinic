@@ -5,6 +5,7 @@
  */
 import type { PatientRow, ProcedureRow } from '@yegna/shared/client';
 import { addDays } from '@yegna/time';
+import { type CallItem, approvalsByDay, callList, callListRange } from './callList.ts';
 import { db } from './db.ts';
 import { live, useLive } from './live.ts';
 import { type DayPlan, dayRange, planDay } from './schedule.ts';
@@ -61,4 +62,27 @@ export function useProcedures(): Map<string, ProcedureRow> | undefined {
 /** All live patients, for the booking sheet's search (searched in memory on the device). */
 export function useAllPatients(): PatientRow[] | undefined {
   return useLive(async () => live(await db.patients.toArray()), []);
+}
+
+/** The call list, kept current as the working copy changes. */
+export function useCallList(): CallItem[] | undefined {
+  return useLive(async () => {
+    const now = Date.now();
+    const [from, to] = callListRange(now);
+    const bookings = await db.bookings.where('startAt').between(from, to).toArray();
+    const patients = await db.patients.bulkGet([...new Set(bookings.map((b) => b.patientId))]);
+    return callList(bookings, new Map(patients.flatMap((p) => (p ? [[p.id, p]] : []))), now);
+  }, []);
+}
+
+/** Days with bookings waiting for approval, kept current as the working copy changes. */
+export function useApprovals() {
+  return useLive(async () => {
+    const now = Date.now();
+    const pending = await db.bookings.where('startAt').above(now).toArray();
+    const days = approvalsByDay(pending, now);
+    const ids = [...new Set(days.flatMap((d) => d.bookings.map((b) => b.patientId)))];
+    const patients = new Map((await db.patients.bulkGet(ids)).flatMap((p) => (p ? [[p.id, p]] : [])));
+    return { days, patients };
+  }, []);
 }
