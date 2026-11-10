@@ -10,6 +10,7 @@ import { type Notifier, telegramNotifier } from '../notify/notifier.ts';
 import {
   type JobContext,
   approvalDigests,
+  clashAlerts,
   callListMessages,
   linkedTeam,
   movableHolidayReminders,
@@ -21,6 +22,7 @@ import {
 const TEAM_JOBS = [
   ['tomorrow_summary', tomorrowSummaries],
   ['call_list', callListMessages],
+  ['clash', clashAlerts],
   ['unapproved_24h', unapprovedAlerts],
   ['approval_digest', approvalDigests],
   ['holiday_reminder', movableHolidayReminders],

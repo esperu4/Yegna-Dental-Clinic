@@ -3,7 +3,7 @@
  * data what is due, and sends through `deliverOnce`, so a job run twice (or an hour late) sends
  * nothing twice. Jobs stop early when the run's D1 query budget runs low; the next hour continues.
  */
-import { and, asc, eq, gt, gte, isNotNull, isNull, lt } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt } from 'drizzle-orm';
 import { bookings, patients, procedures, settings, users } from '@yegna/db';
 import {
   type BookingRow,
@@ -23,6 +23,7 @@ import {
   MAX_LINES,
   approvalDigest,
   callListMessage,
+  clashAlert,
   movableHolidayReminder,
   tomorrowSummary,
   unapprovedAlert,
@@ -49,6 +50,7 @@ const hasBudget = (ctx: JobContext, deliveries = 1) => ctx.meter.remaining() >= 
 export async function linkedTeam(db: Db): Promise<Recipient[]> {
   const rows = await db
     .select({
+      userId: users.id,
       chatId: users.telegramChatId,
       role: users.role,
       locale: users.locale,
@@ -72,6 +74,7 @@ function bookingsWhere(db: Db, ...conditions: Parameters<typeof and>) {
       startAt: bookings.startAt,
       durationMin: bookings.durationMin,
       status: bookings.status,
+      createdBy: bookings.createdBy,
       callHandledAt: bookings.callHandledAt,
       patientName: patients.name,
       patientDeletedAt: patients.deletedAt,
@@ -94,6 +97,42 @@ const lineOf = (b: BookingWithPatient): BookingLine => ({
   startAt: b.startAt,
   procedureCode: b.procedureCode,
 });
+
+/** How long after a clash its alert is still sent (the hourly run catches up within this). */
+export const CLASH_ALERT_WINDOW_MS = 24 * 60 * 60_000;
+
+/**
+ * A booking that lost a clash: alert its creator and the Doctor(s) once (PRD §13 "on sync").
+ * `/sync` calls this right after the clash with those bookings' ids; the hourly run catches up
+ * with any clash of the last 24 h not yet sent (`ids` omitted).
+ */
+export async function clashAlerts(
+  ctx: Pick<JobContext, 'db' | 'meter' | 'notifier' | 'now' | 'pwaUrl'>,
+  team: Recipient[],
+  ids?: string[],
+) {
+  if (team.length === 0) return;
+  const clashed = await bookingsWhere(
+    ctx.db,
+    eq(bookings.status, 'clash'),
+    gt(bookings.startAt, ctx.now),
+    isNull(patients.deletedAt),
+    ids ? inArray(bookings.id, ids) : gt(bookings.updatedAt, ctx.now - CLASH_ALERT_WINDOW_MS),
+  );
+  for (const booking of clashed) {
+    const recipients = team.filter((r) => r.role === 'doctor' || r.userId === booking.createdBy);
+    for (const r of recipients) {
+      if (ctx.meter.remaining() < PER_DELIVERY + 2) return;
+      await deliverOnce(
+        ctx.db,
+        ctx.notifier,
+        { kind: 'clash', key: booking.id, chatId: r.chatId },
+        () => clashAlert(r, lineOf(booking), ctx.pwaUrl),
+        ctx.now,
+      );
+    }
+  }
+}
 
 /** Hourly: bookings still waiting for approval less than 24 h before their start, once each (§10). */
 export async function unapprovedAlerts(ctx: JobContext, team: Recipient[]) {

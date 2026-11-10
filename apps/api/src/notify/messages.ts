@@ -15,6 +15,8 @@ import {
 import type { MessageButton, OutgoingMessage } from './notifier.ts';
 
 export interface Recipient {
+  /** The team member, when known (to pick a booking's creator). */
+  userId?: string;
   chatId: string;
   role: 'doctor' | 'staff';
   locale: 'am' | 'en';
@@ -109,6 +111,18 @@ export function unapprovedAlert(r: Recipient, b: BookingLine): OutgoingMessage {
     ...(r.role === 'doctor'
       ? { buttons: [[{ text: say(r, 'አጽድቅ', 'Approve'), data: approveData(b) }]] }
       : {}),
+  };
+}
+
+/** A booking lost a clash (PRD §7.5, §13): to its creator and the Doctor. */
+export function clashAlert(r: Recipient, b: BookingLine, pwaUrl: string): OutgoingMessage {
+  return {
+    text: say(
+      r,
+      `⚠️ ግጭት፦ ${line(r, b, true)} — ሌላ ቀጠሮ ይህን ሰዓት ቀድሞ ይዟል። ወደ ክፍት ጊዜ ይቀይሩት።`,
+      `⚠️ Clash: ${line(r, b, true)} — another booking took this time first. Move it to a free time.`,
+    ),
+    buttons: [[openApp(r, pwaUrl, 'መተግበሪያውን ክፈት', 'Open the app')]],
   };
 }
 

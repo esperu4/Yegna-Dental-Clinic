@@ -230,6 +230,24 @@ describe('hourly cron: team jobs (PRD §13, §16)', () => {
     expect(log.results.every((r) => r.status === 'sent')).toBe(true);
   });
 
+  it('alerts the creator and the Doctor once about a clash (PRD §13)', async () => {
+    await staffBooking(10, 'First Patient');
+    // The Doctor's phone approves it, so it holds 10:00; a second Staff booking at 10:00 clashes.
+    await env.DB.prepare("UPDATE bookings SET status = 'approved'").run();
+    const loser = await staffBooking(10, 'Second Patient');
+    const status = await env.DB.prepare('SELECT status FROM bookings WHERE id = ?').bind(loser).first();
+    expect(status?.status).toBe('clash');
+    const telegram = new FakeTelegram();
+    // The catch-up looks at clashes of the last 24 h: run now, and again an hour later.
+    await runHourly(env, Date.now(), telegram);
+    await runHourly(env, Date.now() + 60 * 60_000, telegram);
+    for (const chat of [DOCTOR_CHAT, STAFF_CHAT]) {
+      const alerts = telegram.to(chat, '⚠️ Clash');
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]!.message.text).toContain('Second Patient');
+    }
+  });
+
   it('sends nothing to team members who did not link Telegram', async () => {
     await env.DB.prepare('UPDATE users SET telegram_chat_id = NULL WHERE id = ?').bind(staff.user.id).run();
     await staffBooking(10);

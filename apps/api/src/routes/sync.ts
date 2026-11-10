@@ -18,6 +18,8 @@ import {
 } from '@yegna/shared';
 import { type AppEnv, fail, parseBody } from '../lib/http.ts';
 import { requireDevice } from '../lib/session.ts';
+import { clashAlerts, linkedTeam } from '../jobs/team.ts';
+import { telegramNotifier } from '../notify/notifier.ts';
 import { MAX_QUERIES_PER_OP, applyOp, prefetch } from '../sync/apply.ts';
 import { currentRows, mergeChanges, pull } from '../sync/pull.ts';
 
@@ -25,6 +27,8 @@ import { currentRows, mergeChanges, pull } from '../sync/pull.ts';
 const MAX_BODY_BYTES = 512 * 1024;
 /** Queries kept back for the pull and the rows sent back for refused ops. */
 const PULL_RESERVE = 2;
+/** Queries a clash alert needs at least (team, bookings, one delivery). */
+const CLASH_ALERT_MIN_QUERIES = 6;
 const DAY_MS = 86_400_000;
 /** A throttled device sends only pulls for this long, then tries its ops again. */
 const THROTTLE_RETRY_MS = 60 * 60_000;
@@ -80,6 +84,33 @@ sync.post(
     const changes = refused.length
       ? mergeChanges(page.changes, await currentRows(db, refused))
       : page.changes;
+
+    // Clash alerts to the creator and the Doctor (PRD §13 "on sync"), after the response, within
+    // what is left of this request's query budget; the hourly run sends any that don't fit.
+    const clashed = body.ops
+      .slice(0, results.length)
+      .filter((_, i) => results[i]!.outcome === 'clash')
+      .map((op) => op.entityId);
+    if (clashed.length && c.env.TEAM_BOT_TOKEN && meter.remaining() >= CLASH_ALERT_MIN_QUERIES) {
+      const token = c.env.TEAM_BOT_TOKEN;
+      const now = Date.now();
+      const send = linkedTeam(db)
+        .then((team) =>
+          clashAlerts(
+            { db, meter, notifier: telegramNotifier(token), now, pwaUrl: c.env.PWA_ORIGIN },
+            team,
+            clashed,
+          ),
+        )
+        .catch((err: unknown) =>
+          console.error('clash_alert_failed', err instanceof Error ? err.name : 'unknown'),
+        );
+      try {
+        c.executionCtx.waitUntil(send);
+      } catch {
+        // No execution context (tests calling the app directly): it runs on its own.
+      }
+    }
 
     return c.json({
       results,
