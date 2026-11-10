@@ -6,6 +6,7 @@ import type { AppEnv } from './lib/http.ts';
 import { admin } from './routes/admin.ts';
 import { auth } from './routes/auth.ts';
 import { sync } from './routes/sync.ts';
+import { runHourly } from './jobs/dispatch.ts';
 
 const app = new Hono<AppEnv>();
 
@@ -53,4 +54,13 @@ app.onError((err, c) => {
   return c.json({ error: 'server_error' }, 500);
 });
 
-export default app;
+export default {
+  fetch: app.fetch,
+  /** The hourly cron (wrangler.jsonc `triggers`); see jobs/dispatch.ts. */
+  scheduled(controller, env, ctx) {
+    ctx.waitUntil(runHourly(env, controller.scheduledTime));
+  },
+} satisfies ExportedHandler<Env>;
+
+/** The Hono app, for tests (`app.request`). */
+export { app };

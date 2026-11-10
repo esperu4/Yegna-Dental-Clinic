@@ -5,9 +5,11 @@ import { CLASH_STATUSES, MAX_BOOKING_MIN, SETTINGS_ID } from '@yegna/shared';
 import {
   type BookingError,
   DEFAULT_WEEKLY_HOURS,
+  GRID_STEP_MIN,
   type DayRule,
   type WeeklyDefaults,
   checkBooking,
+  localToUtc,
   resolveDay,
   utcToLocal,
 } from '@yegna/time';
@@ -54,6 +56,16 @@ export function hoursError(rows: unknown[], startAt: number, durationMin: number
   const { date, minutes } = utcToLocal(startAt);
   const day = resolveDay(date, parseWeekly(settingsRow[0]?.weeklyHours), rule[0] ?? null, holiday[0] ?? null);
   return checkBooking(day, minutes, durationMin, overlapping).errors[0] ?? null;
+}
+
+/** Whether the clinic is open on `date` (weekly hours, the Doctor's day rule, holidays). */
+export async function isClinicOpen(db: Db, date: string): Promise<boolean> {
+  const rows = (await db.batch(
+    hoursQueries(db, localToUtc(date, 12 * 60), GRID_STEP_MIN) as never,
+  )) as HoursRows;
+  const [settingsRow, rule, holiday] = rows;
+  return !resolveDay(date, parseWeekly(settingsRow[0]?.weeklyHours), rule[0] ?? null, holiday[0] ?? null)
+    .closed;
 }
 
 /** `hoursQueries` + `hoursError` as one batch, for when nothing else needs reading. */

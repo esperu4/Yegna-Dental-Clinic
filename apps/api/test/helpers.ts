@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getPlatformProxy } from 'wrangler';
 import { type EnrolResponse, uuidv7 } from '@yegna/shared';
-import app from '../src/index.ts';
+import { app } from '../src/index.ts';
 import { meterD1 } from '../src/lib/queryMeter.ts';
 
 const MIGRATIONS = join(import.meta.dirname, '..', '..', '..', 'packages', 'db', 'migrations');

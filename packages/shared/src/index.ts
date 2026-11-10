@@ -5,5 +5,6 @@ export * from './auth.ts';
 export * from './rules.ts';
 export * from './bookingLifecycle.ts';
 export * from './bookingWindow.ts';
+export * from './callList.ts';
 export * from './syncTypes.ts';
 export * from './sync.ts';

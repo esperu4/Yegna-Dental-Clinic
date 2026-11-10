@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { BookingRow, PatientRow } from '@yegna/shared/client';
+import type { BookingRow, PatientRow } from '../src/index.ts';
 import { localToUtc } from '@yegna/time';
-import { approvalsByDay, callList, callListRange } from '../src/lib/callList.ts';
+import { approvalsByDay, callList, callListRange } from '../src/callList.ts';
 
 // Monday 16 Nov 2026, 10:00 in Addis Ababa.
 const NOW = localToUtc('2026-11-16', 10 * 60);

@@ -206,7 +206,7 @@ beforeAll(async () => {
   // Each simulated phone has its own sync lock; Node's one `navigator.locks` would serialize them.
   vi.stubGlobal('navigator', { onLine: true });
   helpers = (await import(join(API_DIR, 'test', 'helpers.ts'))) as ApiTestHelpers;
-  app = ((await import(join(API_DIR, 'src', 'index.ts'))) as { default: ApiApp }).default;
+  app = ((await import(join(API_DIR, 'src', 'index.ts'))) as { app: ApiApp }).app;
   ({ env: vars, dispose: disposeVars } = await helpers.createTestEnv());
   allWorlds.push(...(await Promise.all(Array.from({ length: WORLDS }, (_, n) => createWorld(n)))));
   idle.push(...allWorlds);

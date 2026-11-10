@@ -5,6 +5,8 @@
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // One hourly cron (PRD §16, §19); jobs dispatch by Addis Ababa local time (src/jobs/dispatch.ts).
+  "triggers": { "crons": ["0 * * * *"] },
   // Local development (wrangler dev): local D1 only.
   "vars": { "ENVIRONMENT": "local", "PWA_ORIGIN": "http://localhost:5173" },
   "d1_databases": [
@@ -18,6 +20,7 @@
   "env": {
     "staging": {
       "name": "yegna-api-staging",
+      "triggers": { "crons": ["0 * * * *"] },
       "vars": {
         "ENVIRONMENT": "staging",
         "PWA_ORIGIN": "https://yegna-pwa-staging.yegna-api.workers.dev",

@@ -1,8 +1,8 @@
 /**
- * Call list and approvals (PRD §8 items 7–8, §10). Pure: the screens pass in rows from the
- * working copy, so both lists work offline and are unit-tested.
+ * Call list and approvals (PRD §8 items 7–8, §10, ADR 0008). Pure, and shared: the PWA computes
+ * the lists from its working copy (offline), and the server's 18:00 team message uses the same rule.
  */
-import type { BookingRow, PatientRow } from '@yegna/shared/client';
+import type { BookingRow, PatientRow } from './syncTypes.ts';
 import { addDays, localDateOf, localToUtc, utcToLocal } from '@yegna/time';
 
 export const UNAPPROVED_ALERT_MS = 24 * 60 * 60_000;
