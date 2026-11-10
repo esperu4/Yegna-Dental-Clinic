@@ -2,9 +2,9 @@
  * Doctor-only: users and devices (PRD §9: "Users, devices, revoke").
  * Mounted at `/admin`; every route here is behind one doctor-only guard.
  */
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { devices, users } from '@yegna/db';
+import { devices, telegramLinkCodes, users } from '@yegna/db';
 import {
   type DeviceInfo,
   createUserRequest,
@@ -117,6 +117,10 @@ admin.patch('/users/:id', async (c) => {
         updatedBy: session.user.id,
       })
       .where(eq(users.id, id)),
+    // Disabling a user drops their unused Telegram link codes.
+    db
+      .delete(telegramLinkCodes)
+      .where(and(eq(telegramLinkCodes.userId, id), body.disabled ? sql`1` : sql`0`)),
     // Disabling a user signs out all their devices.
     db
       .update(devices)
@@ -174,6 +178,10 @@ admin.post('/devices/:id/revoke', async (c) => {
   const now = Date.now();
   await db.batch([
     db.update(devices).set({ revokedAt: now }).where(eq(devices.id, id)),
+    // A lost or stolen phone: its user's Telegram is unlinked too, so team messages (with patient
+    // names) stop reaching that phone. They link again from a phone they still have.
+    db.update(users).set({ telegramChatId: null }).where(eq(users.id, device.userId)),
+    db.delete(telegramLinkCodes).where(eq(telegramLinkCodes.userId, device.userId)),
     auditInsert(db, session, 'devices', id, 'revoke', null, now),
   ]);
   return c.json({ id, revokedAt: now });

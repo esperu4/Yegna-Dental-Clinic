@@ -17,7 +17,7 @@ Never paste a token into chat, an issue, a commit or a log.
 2. Name: `Yegna Team (test)` for staging (`Yegna Team` for production).
 3. Username: must end in `bot`, e.g. `YegnaTeamTestBot`. Note it.
 4. BotFather replies with the token. Keep it for step 2 only.
-5. Optional: `/setprivacy` → Enable (the bot only serves private chats anyway).
+5. `/setjoingroups` → **Disable** (the bot serves private chats only; it ignores groups anyway).
 
 ## 2. Store the secrets (from the repo root)
 

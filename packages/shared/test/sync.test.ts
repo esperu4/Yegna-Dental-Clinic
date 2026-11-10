@@ -155,3 +155,13 @@ describe('rowKey', () => {
     expect(rowKey('patients', { id: 'p1' } as never)).toBe('p1');
   });
 });
+
+describe('free text: broken characters', () => {
+  it('drops half an emoji (a lone surrogate) from names', () => {
+    const fields = parseOpFields('patients', 'create', '01900000-0000-7000-8000-000000000001', {
+      name: 'Abebe \uD83D',
+      phoneE164: '+251911234567',
+    });
+    expect(fields?.name).toBe('Abebe');
+  });
+});

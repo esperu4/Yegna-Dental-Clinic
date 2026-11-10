@@ -49,7 +49,10 @@ const gridDuration = z
 const UNSAFE = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/g;
 // eslint-disable-next-line no-control-regex -- matching control characters is the point
 const UNSAFE_OR_NEWLINE = /[\u0000-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/g;
-const clean = (pattern: RegExp) => z.string().transform((s) => s.replace(pattern, '').trim());
+/** Half of an emoji or other surrogate pair on its own: not valid text (Telegram refuses it). */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+const clean = (pattern: RegExp) =>
+  z.string().transform((s) => s.replace(pattern, '').replace(LONE_SURROGATE, '').trim());
 
 const text = (max: number) => clean(UNSAFE_OR_NEWLINE).pipe(z.string().min(1).max(max));
 const optionalText = (max: number) =>

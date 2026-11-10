@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { type EnrolResponse, type SyncOp, uuidv7 } from '@yegna/shared';
 import { addDays, localDateOf, localToUtc, weekdayOf } from '@yegna/time';
 import { runHourly } from '../src/jobs/dispatch.ts';
-import type { Notifier, OutgoingMessage } from '../src/notify/notifier.ts';
+import { type Notifier, type OutgoingMessage, PermanentSendError } from '../src/notify/notifier.ts';
 import { type Call, addStaff, caller, createTestEnv, resetDb, setupDoctor } from './helpers.ts';
 
 let env: Env;
@@ -246,6 +246,23 @@ describe('hourly cron: team jobs (PRD §13, §16)', () => {
       expect(alerts).toHaveLength(1);
       expect(alerts[0]!.message.text).toContain('Second Patient');
     }
+  });
+
+  it('drops a message Telegram refuses for good (bot blocked) instead of retrying it hourly', async () => {
+    await staffBooking(10);
+    const blocked: Notifier = {
+      send: async () => {
+        throw new PermanentSendError('telegram_403');
+      },
+    };
+    await runHourly(env, at(sunday(), 19), blocked);
+    const telegram = new FakeTelegram();
+    await runHourly(env, at(sunday(), 20), telegram);
+    expect(telegram.to(DOCTOR_CHAT, 'Tomorrow')).toHaveLength(0);
+    const log = await env.DB.prepare(
+      "SELECT status FROM notification_log WHERE kind = 'tomorrow_summary'",
+    ).first<{ status: string }>();
+    expect(log?.status).toBe('dropped');
   });
 
   it('sends nothing to team members who did not link Telegram', async () => {

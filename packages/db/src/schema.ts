@@ -65,7 +65,13 @@ export const users = sqliteTable(
     disabledAt: integer('disabled_at'),
     ...syncable,
   },
-  (t) => [index('users_version_idx').on(t.version)],
+  (t) => [
+    index('users_version_idx').on(t.version),
+    // A Telegram chat belongs to one account at a time (PRD §13).
+    uniqueIndex('users_telegram_chat_uq')
+      .on(t.telegramChatId)
+      .where(sql`${t.telegramChatId} IS NOT NULL`),
+  ],
 );
 
 export const devices = sqliteTable(

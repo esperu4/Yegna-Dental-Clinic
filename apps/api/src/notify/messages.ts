@@ -58,6 +58,9 @@ function line(r: Recipient, b: BookingLine, withDate: boolean): string {
   return `${when} · ${b.patientName}${b.procedureCode ? ` (${b.procedureCode})` : ''}`;
 }
 
+/** At most `n` characters, never splitting an emoji (a cut surrogate pair makes Telegram refuse). */
+const cut = (s: string, n: number) => Array.from(s).slice(0, n).join('');
+
 const say = (r: Recipient, am: string, en: string) => (r.locale === 'am' ? am : en);
 
 /** Bullet lines, at most `MAX_LINES`, then "…and N more". */
@@ -96,7 +99,7 @@ export function approvalDigest(r: Recipient, pending: BookingLine[], digestKey: 
       ],
       ...pending
         .slice(0, DIGEST_BUTTONS)
-        .map((b) => [{ text: `✓ ${line(r, b, true)}`.slice(0, 60), data: approveData(b) }]),
+        .map((b) => [{ text: cut(`✓ ${line(r, b, true)}`, 60), data: approveData(b) }]),
     ],
   };
 }

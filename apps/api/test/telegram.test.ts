@@ -306,3 +306,33 @@ describe('team bot: connecting the webhook', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('team bot: losing access', () => {
+  it('unlinks Telegram when one of the user’s phones is revoked (lost phone)', async () => {
+    await link(staff, STAFF_CHAT);
+    await call('POST', `/admin/devices/${staff.deviceId}/revoke`, { token: doctor.token });
+    expect(replies(await botReceives(text(STAFF_CHAT, '/today')))[0]).toContain('only for the Yegna');
+  });
+
+  it('unlinks Telegram and voids pending link codes when a user is disabled', async () => {
+    await link(staff, STAFF_CHAT);
+    const code = await linkCode(staff);
+    await call('PATCH', `/admin/users/${staff.user.id}`, { token: doctor.token, body: { disabled: true } });
+    expect(replies(await botReceives(text(STAFF_CHAT, '/today')))[0]).toContain('only for the Yegna');
+    await call('PATCH', `/admin/users/${staff.user.id}`, { token: doctor.token, body: { disabled: false } });
+    expect(replies(await botReceives(text(STAFF_CHAT, `/start ${code}`)))[0]).toContain('expired');
+  });
+
+  it('does not approve a booking whose patient was erased', async () => {
+    await link(doctor, DOCTOR_CHAT);
+    const b = await staffBooking(10);
+    await env.DB.prepare(
+      'UPDATE patients SET deleted_at = 1 WHERE id = (SELECT patient_id FROM bookings WHERE id = ?)',
+    )
+      .bind(b.id)
+      .run();
+    const calls = await botReceives(tap(DOCTOR_CHAT, `approve:${b.id}:${b.version}`));
+    expect(answers(calls)[0]).toContain('changed since');
+    expect((await bookingRow(b.id)).status).toBe('pending_approval');
+  });
+});

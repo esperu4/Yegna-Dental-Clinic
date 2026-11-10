@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `users_telegram_chat_uq` ON `users` (`telegram_chat_id`) WHERE "users"."telegram_chat_id" IS NOT NULL;

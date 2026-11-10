@@ -50,6 +50,13 @@
       "when": 1794333248360,
       "tag": "0006_telegram_link_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1794335087386,
+      "tag": "0007_users_telegram_chat_unique",
+      "breakpoints": true
     }
   ]
 }
