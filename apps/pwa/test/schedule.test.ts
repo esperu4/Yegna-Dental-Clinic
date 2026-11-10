@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { BlockRow, BookingRow, PatientRow } from '@yegna/shared/client';
 import { DEFAULT_WEEKLY_HOURS, localToUtc } from '@yegna/time';
 import { phoneDigits, searchByName, searchByPhone } from '../src/lib/patientSearch.ts';
-import { cardActions, checkDraft, needsAttention, nextFreeSlot, planDay } from '../src/lib/schedule.ts';
+import {
+  cardActions,
+  checkDraft,
+  freeSlots,
+  needsAttention,
+  nextFreeSlot,
+  planDay,
+} from '../src/lib/schedule.ts';
 
 const MONDAY = '2026-11-16';
 const SUNDAY = '2026-11-15';
@@ -154,6 +161,24 @@ describe('nextFreeSlot', () => {
     expect(nextFreeSlot(p, 60)).toBe(11 * 60);
     expect(nextFreeSlot(p, 30, 11 * 60 + 15)).toBe(11 * 60 + 15);
     expect(nextFreeSlot(plan({ date: SUNDAY }), 60)).toBeNull();
+  });
+});
+
+describe('freeSlots (fixing a clash, PRD §7.5)', () => {
+  it('offers only times that clash with nothing, ignoring the booking being moved', () => {
+    const p = plan({
+      bookings: [
+        booking('winner', at(MONDAY, 9), { durationMin: 30 }),
+        booking('loser', at(MONDAY, 9), { status: 'clash', durationMin: 30 }),
+      ],
+    });
+    const free = freeSlots(p, 30, 'loser');
+    expect(free).not.toContain(9 * 60);
+    expect(free[0]).toBe(9 * 60 + 30);
+    // Lunch only warns: its times stay on offer.
+    expect(free).toContain(12 * 60);
+    // Nothing runs past closing.
+    expect(free.at(-1)).toBe(17 * 60 + 30);
   });
 });
 

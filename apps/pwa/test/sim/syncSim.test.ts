@@ -507,11 +507,26 @@ async function checkRun({ env, devices }: World, run: RunRecord) {
     for (const answer of given) expect(answer, `re-sent op ${op.opId}`).toEqual(stored);
     answers.delete(op.opId);
   }
-  // Applied once, however often it was re-sent: one audit row per op.
-  const audits = await env.DB.prepare('SELECT COUNT(*) AS n FROM audit_log WHERE at >= ?')
-    .bind(run.runStart)
-    .all<{ n: number }>();
-  expect(audits.results[0]!.n, 'one audit row per op').toBe(written.length);
+  // Applied once, however often it was re-sent: one audit row per op (counted per row changed,
+  // so a mismatch shows which row and what was written).
+  const audits = (
+    await env.DB.prepare('SELECT entity_id, action, device_id FROM audit_log WHERE at >= ? ORDER BY at')
+      .bind(run.runStart)
+      .all<{ entity_id: string; action: string; device_id: string }>()
+  ).results;
+  const count = (ids: string[]) =>
+    ids.reduce<Record<string, number>>((m, id) => ({ ...m, [id]: (m[id] ?? 0) + 1 }), {});
+  const auditCounts = count(audits.map((a) => a.entity_id));
+  const opCounts = count(written.map((w) => w.op.entityId));
+  if (
+    JSON.stringify(Object.entries(auditCounts).sort()) !== JSON.stringify(Object.entries(opCounts).sort())
+  ) {
+    const ops = written.map(
+      ({ device, op }) =>
+        `${device.label} ${op.kind} ${op.entity}/${op.entityId} ${JSON.stringify(op.fields)}`,
+    );
+    expect({ audits, ops }, 'one audit row per op').toEqual({ audits: '(one per op)', ops });
+  }
 
   await expectOneWinner(env, run);
   const bookings = (

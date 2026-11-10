@@ -8,13 +8,26 @@ import { doctorPhone, openDay, staffPhone } from './helpers.ts';
 
 const card = (page: Page, text: string) => page.locator('.booking').filter({ hasText: text });
 
-async function bookOffline(page: Page, phone: string, name: string, minutes: number) {
+/** The times the booking sheet offers (minutes after midnight), in order. */
+async function offeredTimes(page: Page): Promise<string[]> {
+  // The sheet fills its times once the day is loaded.
+  await expect(page.getByLabel('Time').locator('option:not([value=""])').first()).toBeAttached();
+  return page
+    .getByLabel('Time')
+    .locator('option:not([value=""])')
+    .evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value));
+}
+
+/** Books on an offline phone, at `minutes` or else the first time offered; returns the time used. */
+async function bookOffline(page: Page, phone: string, name: string, minutes?: string): Promise<string> {
   await page.getByRole('button', { name: 'New booking' }).click();
   await page.getByLabel('Phone').fill(phone);
   await page.getByLabel('Patient name').fill(name);
-  await page.getByLabel('Time').selectOption(String(minutes));
+  const time = minutes ?? (await offeredTimes(page))[0]!;
+  await page.getByLabel('Time').selectOption(time);
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(card(page, name).getByText('Not sent yet')).toBeVisible();
+  return time;
 }
 
 /** Network back: the app syncs on its own when it sees the `online` event (PRD §7.3). */
@@ -26,20 +39,22 @@ async function backOnline(page: Page) {
 
 test('two phones book the same time offline: one wins, the other is told and moves (PRD §7.5)', async ({
   browser,
-}) => {
+}, testInfo) => {
   const doctor = await (await browser.newContext()).newPage();
   await doctorPhone(doctor, 'Clash test Doctor phone');
-  const staff = await staffPhone(browser, doctor, 'Tigist', '615204');
+  // A retry runs against the same server: it needs a Staff account of its own.
+  const staff = await staffPhone(browser, doctor, `Tigist ${testInfo.retry + 1}`, '615204');
   for (const page of [doctor, staff]) {
     await openDay(page, 4);
     await expect(page.locator('.sync-pill')).toHaveText('Synced', { timeout: 15_000 });
     await page.context().setOffline(true);
   }
 
-  await bookOffline(doctor, '0916 12 34 01', 'Abebe Girma', 10 * 60);
-  await bookOffline(staff, '0916 12 34 02', 'Tigist Alemu', 10 * 60);
+  // The same time on both phones (whatever the day's first free time is).
+  const time = await bookOffline(doctor, '0916 12 34 01', 'Abebe Girma');
+  await bookOffline(staff, '0916 12 34 02', 'Tigist Alemu', time);
 
-  // The Doctor's phone reaches the server first and keeps 10:00.
+  // The Doctor's phone reaches the server first and keeps the time.
   await backOnline(doctor);
   await expect(card(doctor, 'Abebe Girma').getByText('Approved')).toBeVisible();
 
@@ -51,7 +66,9 @@ test('two phones book the same time offline: one wins, the other is told and mov
 
   await notice.click();
   await expect(staff.getByRole('heading', { name: 'Move booking' })).toBeVisible();
-  await staff.getByLabel('Time').selectOption(String(11 * 60));
+  // The move sheet offers only free times; take the first that isn't the lost one.
+  const free = (await offeredTimes(staff)).find((t) => t !== time);
+  await staff.getByLabel('Time').selectOption(free!);
   // Saving sends the move at once.
   await staff.getByRole('button', { name: 'Save' }).click();
   // Moved by Staff: it goes back to the Doctor for approval (PRD §21 #2), and the notice is gone.

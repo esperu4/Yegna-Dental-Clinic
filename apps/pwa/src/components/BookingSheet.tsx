@@ -23,7 +23,7 @@ import { db } from '../lib/db.ts';
 import { formatDate, formatPhone, formatTime } from '../lib/format.ts';
 import { searchByName, searchByPhone } from '../lib/patientSearch.ts';
 import { sortProcedures } from '../lib/procedures.ts';
-import { checkDraft, nextFreeSlot } from '../lib/schedule.ts';
+import { checkDraft, freeSlots, nextFreeSlot } from '../lib/schedule.ts';
 import { sync } from '../lib/sync.ts';
 import { Field, useAction } from './ui.tsx';
 
@@ -69,6 +69,15 @@ export function BookingSheet(props: { mode: SheetMode; onClose: () => void }) {
   const procedure = procedureId ? procedures?.get(procedureId) : undefined;
   const duration = durationMin ?? bookingDuration(procedure?.durationMin, unspecified);
 
+  // Fixing a clash or a booking that needs fixing: only free times are offered (PRD §7.5), and the
+  // sheet opens at the first free one from the booking's current time.
+  const fixing = moving !== null && (moving.status === 'clash' || moving.status === 'needs_fixing');
+  const free = plan && fixing ? freeSlots(plan, duration, moving.id) : null;
+  useEffect(() => {
+    if (!free || (startMin !== null && free.includes(startMin))) return;
+    setStartMin(free.find((m) => m >= (startMin ?? 0)) ?? free[0] ?? null);
+  }, [free?.join(), startMin]);
+
   // Open at the next free slot when no time was given (the + button).
   useEffect(() => {
     if (plan && startMin === null) {
@@ -88,7 +97,7 @@ export function BookingSheet(props: { mode: SheetMode; onClose: () => void }) {
     startMin === null
       ? null
       : checkDraft(plan, { startMin, durationMin: duration, ...(moving ? { bookingId: moving.id } : {}) });
-  const slots = gridSlots(plan.day);
+  const slots = free ?? gridSlots(plan.day);
   const patientShown = moving ? mode.patient : picked;
 
   function pick(p: PatientRow) {

@@ -498,14 +498,51 @@ describe('device sync: robustness', () => {
     await db.setMeta('syncCursor', 7);
     expect((await db.patients.get(op.entityId))?.provisional).toBe(true);
     server.offline = false;
+    // The server's row at version 7 (its own updatedAt, not the phone's).
+    const serverRow = {
+      id: op.entityId,
+      ...patient(),
+      note: null,
+      telegramLinked: false,
+      version: 7,
+      updatedAt: 123,
+      updatedBy: USER_ID,
+      deletedAt: null,
+    };
     server.handle = async (req) => ({
       results: req.ops.map((o) => ({ opId: o.opId, outcome: 'applied' as const, version: 7 })),
-      changes: {},
-      newCursor: req.cursor,
+      changes: req.cursor < 7 ? { patients: [serverRow] } : {},
+      newCursor: Math.max(req.cursor, 7),
       more: false,
     });
     await sync.syncNow();
-    expect((await db.patients.get(op.entityId))?.provisional).toBe(false);
+    // The phone pulled the row again rather than trusting its own copy.
+    expect(await db.patients.get(op.entityId)).toEqual({ ...serverRow, provisional: false });
+    expect(await db.getMeta('syncCursor')).toBe(7);
+  });
+
+  it('never steps back a row that has edits waiting either', async () => {
+    const { server, db, sync } = await setup();
+    const op = await sync.write('patients', 'create', patient('Abebe'));
+    await sync.syncNow();
+    // The phone holds version 10 (pulled by the other engine) with an edit still waiting.
+    await db.patients.update(op.entityId, { version: 10 });
+    server.holdOps = true;
+    await sync.write('patients', 'update', { name: 'Abebe K.' }, op.entityId);
+    // A late response still carries version 9.
+    server.handle = async (req) => ({
+      results: [],
+      changes: {
+        patients: [
+          { id: op.entityId, ...patient('Old'), note: null, telegramLinked: false, version: 9 } as never,
+        ],
+      },
+      newCursor: req.cursor,
+      more: false,
+      retryOpsAfterMs: 60_000,
+    });
+    await sync.syncNow();
+    expect(await db.patients.get(op.entityId)).toMatchObject({ version: 10, name: 'Abebe K.' });
   });
 
   describe('bookings outside what the device keeps (PRD §7.1)', () => {

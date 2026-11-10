@@ -122,13 +122,19 @@ export function needsAttention(plan: DayPlan): BookingRow[] {
 
 /** The first slot from `fromMin` where a booking of `durationMin` fits with no error or clash. */
 export function nextFreeSlot(plan: DayPlan, durationMin: number, fromMin = 0): number | null {
-  return (
-    gridSlots(plan.day).find((m) => {
-      if (m < fromMin) return false;
-      const check = checkDraft(plan, { startMin: m, durationMin });
-      return check.errors.length === 0 && check.clashWith === null;
-    }) ?? null
-  );
+  return freeSlots(plan, durationMin).find((m) => m >= fromMin) ?? null;
+}
+
+/**
+ * Start times on the grid where a booking of `durationMin` breaks no rule and clashes with no
+ * other booking (`bookingId`: the booking being moved, which does not block itself). Lunch only
+ * warns, so it does not take a time away. Used to fix a clash (PRD §7.5).
+ */
+export function freeSlots(plan: DayPlan, durationMin: number, bookingId?: string): number[] {
+  return gridSlots(plan.day).filter((m) => {
+    const check = checkDraft(plan, { startMin: m, durationMin, ...(bookingId ? { bookingId } : {}) });
+    return check.errors.length === 0 && check.clashWith === null;
+  });
 }
 
 /** Minutes since local midnight of a booking's start. */

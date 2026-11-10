@@ -62,9 +62,16 @@ export async function staffPhone(browser: Browser, doctor: Page, name: string, p
  */
 export async function openDay(page: Page, nth: number) {
   let found = 0;
+  const shownDay = page.locator('.day-picker > span').first();
+  const closed = page.getByText('The clinic is closed this day.');
   for (let i = 0; i < 21; i++) {
+    const before = await shownDay.textContent();
     await page.getByRole('button', { name: 'Next day' }).click();
-    if (await page.getByText('The clinic is closed this day.').isVisible()) continue;
+    // Wait until the next day is drawn (open: its timeline; closed: the notice) before deciding,
+    // or a closed day still loading would count as open.
+    await expect(shownDay).not.toHaveText(before ?? '');
+    await expect(closed.or(page.locator('.timeline'))).toBeVisible();
+    if (await closed.isVisible()) continue;
     if (++found === nth) return;
   }
   throw new Error(`no ${nth}th open day within three weeks`);

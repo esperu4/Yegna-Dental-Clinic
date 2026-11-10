@@ -30,6 +30,8 @@ export const AUTO_SYNC_EVERY_MS = 30_000;
 /** Upper bound on request rounds in one `syncNow` (outbox pages + pull pages). */
 const MAX_ROUNDS = 50;
 const CURSOR_KEY = 'syncCursor';
+/** Highest cursor this device has reached (the cursor itself may step back to pull a row again). */
+const SEEN_KEY = 'syncSeenUpTo';
 /** Set once the first full pull has finished (until then the server applies the booking window). */
 const FILLED_KEY = 'syncFilled';
 /** Until this time the device only pulls: the server held its ops back (daily budget). */
@@ -225,12 +227,13 @@ export function createSync(
         const res = await auth.authed<SyncResponse>('/sync', {
           body: { deviceId: signedIn.deviceId, cursor, initial, ops: entries.map((e) => e.op) },
         });
-        const newFromOthers = await applyResponse(entries, res, signedIn.user, initial);
+        const { newFromOthers, pullAgain } = await applyResponse(entries, res, signedIn.user, initial);
         summary.add({
           results: res.results,
           sent: new Map(entries.map((e) => [e.op.opId, { entity: e.op.entity, entityId: e.op.entityId }])),
           newFromOthers,
         });
+        if (pullAgain) continue;
         if (!res.more && (holdOps || res.retryOpsAfterMs || (await store.outbox.count()) === 0)) break;
         // The server answered none of our ops this time (it ran out of budget): try again later.
         if (!res.more && entries.length > 0 && res.results.length === 0) break;
@@ -268,9 +271,10 @@ export function createSync(
     res: SyncResponse,
     user: { id: string; role: Role },
     initial: boolean,
-  ): Promise<Record<string, number>> {
+  ): Promise<{ newFromOthers: Record<string, number>; pullAgain: boolean }> {
     const role = user.role;
     const newFromOthers: Record<string, number> = {};
+    let pullFrom: number | null = null;
     await store.transaction('rw', responseTables(), async () => {
       const sentById = new Map(sent.map((e) => [e.op.opId, e]));
       // Answered ops (applied, clash or refused) leave the outbox; unanswered ones stay for next time.
@@ -279,7 +283,8 @@ export function createSync(
       const stillPending = await store.outbox.orderBy('seq').toArray();
       const pendingFor = (entity: PullEntity, key: string) =>
         stillPending.filter((e) => e.op.entity === entity && e.op.entityId === key);
-      const seenUpTo = (await store.getMeta<number>(CURSOR_KEY)) ?? 0;
+      const seenUpTo =
+        (await store.getMeta<number>(SEEN_KEY)) ?? (await store.getMeta<number>(CURSOR_KEY)) ?? 0;
       const windowStart = bookingWindowStart(now());
 
       for (const result of res.results) {
@@ -310,9 +315,10 @@ export function createSync(
         for (const serverRow of res.changes[entity] ?? []) {
           const key = rowKey(entity, serverRow);
           const local = (await table.get(key)) as AnyRow | undefined;
-          // Never step back: a response that raced a newer one (another tab; later the service
-          // worker) must not overwrite a row the device already holds at a higher version.
-          if (local && !local.provisional && (local.version as number) > serverRow.version) continue;
+          // Never step back: a response that raced a newer one (the other engine on this phone) must
+          // not overwrite a row the device already holds at a higher version. That holds for a row
+          // with edits waiting too: it is a newer server row with those edits replayed on top.
+          if (local && (local.version as number) > serverRow.version) continue;
           // A booking this device does not hold is only taken if it belongs in the window and is
           // newer than what the device has already pulled. Otherwise it was dropped on purpose
           // (left the window, PRD §7.1) and this copy is either old or a late, stale response:
@@ -359,26 +365,28 @@ export function createSync(
         }
       }
 
-      // An answered op whose result the device already holds (another engine pulled the row while
-      // the op was still waiting, and this answer came back from the server's stored result) has
-      // no row in this response: the row must not stay marked "not sent yet".
+      // An answered op whose row is still marked "not sent yet" with nothing left to send: another
+      // engine pulled the row while the op was waiting (so it holds the op replayed locally), and
+      // this answer came from the server's stored result without the row. The local copy is the
+      // device's guess, not the server's row: pull that row again (from just below the op's
+      // version) instead of trusting it.
       for (const result of res.results) {
         const op = sentById.get(result.opId)?.op;
         if (!op || result.outcome === 'rejected' || pendingFor(op.entity, op.entityId).length) continue;
-        const table = store.entity(op.entity);
-        const local = (await table.get(op.entityId)) as AnyRow | undefined;
+        const local = (await store.entity(op.entity).get(op.entityId)) as AnyRow | undefined;
         if (local?.provisional && (local.version as number) >= result.version) {
-          await table.put({ ...local, provisional: false } as never);
+          pullFrom = Math.min(pullFrom ?? Infinity, result.version - 1);
         }
       }
 
-      const cursor = (await store.getMeta<number>(CURSOR_KEY)) ?? 0;
-      await store.setMeta(CURSOR_KEY, Math.max(cursor, res.newCursor));
+      const cursor = Math.max((await store.getMeta<number>(CURSOR_KEY)) ?? 0, res.newCursor);
+      await store.setMeta(SEEN_KEY, Math.max(seenUpTo, cursor));
+      await store.setMeta(CURSOR_KEY, pullFrom === null ? cursor : Math.min(cursor, pullFrom));
       if (initial && !res.more) await store.setMeta(FILLED_KEY, true);
       if (res.retryOpsAfterMs) await store.setMeta(HOLD_OPS_KEY, now() + res.retryOpsAfterMs);
     });
     await refresh();
-    return newFromOthers;
+    return { newFromOthers, pullAgain: pullFrom !== null };
   }
 
   /**
