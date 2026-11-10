@@ -196,6 +196,9 @@ importers:
       '@yegna/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@yegna/time':
+        specifier: workspace:*
+        version: link:../../packages/time
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4
@@ -281,6 +284,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@yegna/time':
+        specifier: workspace:*
+        version: link:../time
       zod:
         specifier: ^4.6.7
         version: 4.6.7

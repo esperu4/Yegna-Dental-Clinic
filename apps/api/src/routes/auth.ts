@@ -23,7 +23,7 @@ import {
   sha256Hex,
   verifyPin,
 } from '../lib/crypto.ts';
-import { type Db, nextVersion } from '../lib/db.ts';
+import { CURRENT_VERSION, type Db, bumpVersion, withVersion } from '../lib/db.ts';
 import { type AppEnv, fail, parseBody } from '../lib/http.ts';
 import { LIMITS, attemptSucceeded, ipKeyFor, takeAttempt } from '../lib/rateLimit.ts';
 import { requireDevice } from '../lib/session.ts';
@@ -79,14 +79,15 @@ auth.post('/setup', async (c) => {
   if (!safeEqual(body.code, code)) return fail(c, 401, 'invalid_credentials');
 
   const { hash, salt } = await hashPin(body.pin);
-  const version = await nextVersion(db);
   // Conditional insert: if two setups race, only one user (the doctor) is created.
-  const inserted = await db.run(sql`
-    INSERT INTO users (id, name, role, pin_hash, pin_salt, locale, calendar, version, updated_at, updated_by)
-    SELECT ${body.userId}, ${body.name}, 'doctor', ${hash}, ${salt}, ${body.locale}, ${body.calendar},
-           ${version}, ${now}, ${body.userId}
-    WHERE NOT EXISTS (SELECT 1 FROM users)`);
-  if (!inserted.meta.changes) return fail(c, 409, 'already_set_up');
+  const [inserted] = await withVersion(
+    db,
+    sql`INSERT INTO users (id, name, role, pin_hash, pin_salt, locale, calendar, version, updated_at, updated_by)
+        SELECT ${body.userId}, ${body.name}, 'doctor', ${hash}, ${salt}, ${body.locale}, ${body.calendar},
+               ${CURRENT_VERSION}, ${now}, ${body.userId}
+        WHERE NOT EXISTS (SELECT 1 FROM users)`,
+  );
+  if (!inserted?.meta.changes) return fail(c, 409, 'already_set_up');
 
   const user: SessionUser = {
     id: body.userId,
@@ -172,10 +173,12 @@ auth.patch('/me', requireDevice, async (c) => {
   const db = c.get('db');
   const session = c.get('session');
   const now = Date.now();
-  const version = await nextVersion(db);
-  await db
-    .update(users)
-    .set({ ...body, version, updatedAt: now, updatedBy: session.user.id })
-    .where(eq(users.id, session.user.id));
+  await db.batch([
+    bumpVersion(db),
+    db
+      .update(users)
+      .set({ ...body, version: CURRENT_VERSION, updatedAt: now, updatedBy: session.user.id })
+      .where(eq(users.id, session.user.id)),
+  ]);
   return c.json({ ...session, user: { ...session.user, ...body } });
 });

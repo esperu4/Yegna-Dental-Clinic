@@ -14,7 +14,7 @@ import {
 } from '@yegna/shared';
 import { auditInsert } from '../lib/audit.ts';
 import { hashPin } from '../lib/crypto.ts';
-import { type Db, isUniqueViolation, nextVersion } from '../lib/db.ts';
+import { CURRENT_VERSION, type Db, bumpVersion, isUniqueViolation } from '../lib/db.ts';
 import { type AppEnv, fail, parseBody } from '../lib/http.ts';
 import { clearAttempts } from '../lib/rateLimit.ts';
 import { requireDevice, requireDoctor } from '../lib/session.ts';
@@ -51,16 +51,16 @@ admin.post('/users', async (c) => {
   if (await nameTaken(db, body.name)) return fail(c, 409, 'name_taken');
   const now = Date.now();
   const { hash, salt } = await hashPin(body.pin);
-  const version = await nextVersion(db);
   try {
     await db.batch([
+      bumpVersion(db),
       db.insert(users).values({
         id: body.id,
         name: body.name,
         role: 'staff',
         pinHash: hash,
         pinSalt: salt,
-        version,
+        version: CURRENT_VERSION,
         updatedAt: now,
         updatedBy: session.user.id,
       }),
@@ -100,17 +100,17 @@ admin.patch('/users/:id', async (c) => {
   }
 
   const now = Date.now();
-  const version = await nextVersion(db);
   const pin = body.pin ? await hashPin(body.pin) : null;
   const disabledAt = body.disabled === undefined ? target.disabledAt : body.disabled ? now : null;
   await db.batch([
+    bumpVersion(db),
     db
       .update(users)
       .set({
         name: body.name ?? target.name,
         ...(pin ? { pinHash: pin.hash, pinSalt: pin.salt } : {}),
         disabledAt,
-        version,
+        version: CURRENT_VERSION,
         updatedAt: now,
         updatedBy: session.user.id,
       })

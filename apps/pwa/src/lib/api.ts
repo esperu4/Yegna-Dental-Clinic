@@ -19,23 +19,40 @@ export interface ApiOptions {
   body?: unknown;
   token?: string | null;
   fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }
+
+/** A request that hangs (weak signal, captive portal) is given up after this and treated as offline. */
+export const REQUEST_TIMEOUT_MS = 30_000;
 
 export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
-  let res: Response;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? REQUEST_TIMEOUT_MS);
   try {
-    res = await (opts.fetchImpl ?? fetch)(`${API_URL}${path}`, {
-      method: opts.method ?? (opts.body === undefined ? 'GET' : 'POST'),
-      headers,
-      ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
-    });
-  } catch {
-    throw new ApiError(0, 'offline');
+    let res: Response;
+    try {
+      res = await (opts.fetchImpl ?? fetch)(`${API_URL}${path}`, {
+        method: opts.method ?? (opts.body === undefined ? 'GET' : 'POST'),
+        headers,
+        signal: controller.signal,
+        ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+      });
+    } catch {
+      throw new ApiError(0, 'offline');
+    }
+    let data: { error?: ApiErrorCode; retryAfterMs?: number };
+    try {
+      data = (await res.json()) as typeof data;
+    } catch {
+      // An unreadable body (cut off, or an HTML error page from a proxy) is never taken as success.
+      throw new ApiError(res.ok ? 0 : res.status, res.ok ? 'offline' : 'server_error');
+    }
+    if (!res.ok) throw new ApiError(res.status, data.error ?? 'server_error', data.retryAfterMs);
+    return data as T;
+  } finally {
+    clearTimeout(timer);
   }
-  const data = (await res.json().catch(() => ({}))) as { error?: ApiErrorCode; retryAfterMs?: number };
-  if (!res.ok) throw new ApiError(res.status, data.error ?? 'server_error', data.retryAfterMs);
-  return data as T;
 }

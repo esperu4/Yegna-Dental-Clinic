@@ -2,6 +2,7 @@ import { useEffect } from 'preact/hooks';
 import { locale, t } from './i18n/index.ts';
 import { route } from './lib/router.ts';
 import { session } from './lib/session.ts';
+import { sync } from './lib/sync.ts';
 import { Devices, Users } from './screens/Admin.tsx';
 import { Home } from './screens/Home.tsx';
 import { Lock } from './screens/Lock.tsx';
@@ -22,6 +23,10 @@ export function App() {
       document.removeEventListener('pointerdown', onUse);
     };
   }, []);
+
+  // Sync while the app is open and unlocked (PRD §7.3; the service worker takes over in M2).
+  const status = session.status.value;
+  useEffect(() => (status === 'ready' ? sync.startAuto() : undefined), [status]);
 
   useEffect(() => {
     document.documentElement.lang = locale.value;

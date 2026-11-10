@@ -1,0 +1,1 @@
+CREATE INDEX `sync_ops_device_applied_idx` ON `sync_ops` (`device_id`,`applied_at`);

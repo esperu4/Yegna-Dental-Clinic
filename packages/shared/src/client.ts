@@ -15,3 +15,5 @@ export type {
   SetupRequest,
   UpdateMeRequest,
 } from './auth.ts';
+export * from './bookingLifecycle.ts';
+export * from './syncTypes.ts';

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { getPlatformProxy } from 'wrangler';
 import { type EnrolResponse, uuidv7 } from '@yegna/shared';
 import app from '../src/index.ts';
+import { meterD1 } from '../src/lib/queryMeter.ts';
 
 const MIGRATIONS = join(import.meta.dirname, '..', '..', '..', 'packages', 'db', 'migrations');
 export const SETUP_CODE = 'test-setup-code-0123456789abcdef0123';
@@ -75,4 +76,11 @@ export async function resetDb(env: Env) {
       return (ia === -1 ? order.length : ia) - (ib === -1 ? order.length : ib);
     });
   await env.DB.batch(names.map((n) => env.DB.prepare(`DELETE FROM ${n}`)));
+}
+
+/** Counts D1 queries made through `env.DB` (same counter as production, see queryMeter.ts). */
+export function countingD1(d1: D1Database) {
+  let meter = meterD1(d1);
+  const db = new Proxy(d1, { get: (_t, prop) => Reflect.get(meter.d1, prop) as unknown });
+  return { db, queries: () => meter.used(), reset: () => (meter = meterD1(d1)) };
 }

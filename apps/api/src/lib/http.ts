@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { z } from 'zod';
 import type { ApiErrorCode, SessionUser } from '@yegna/shared';
 import type { Db } from './db.ts';
+import type { QueryMeter } from './queryMeter.ts';
 
 export interface Session {
   user: SessionUser;
@@ -11,7 +12,7 @@ export interface Session {
 
 export type AppEnv = {
   Bindings: Env;
-  Variables: { db: Db; session: Session };
+  Variables: { db: Db; session: Session; meter: QueryMeter };
 };
 
 export function fail(c: Context, status: ContentfulStatusCode, error: ApiErrorCode, extra?: object) {

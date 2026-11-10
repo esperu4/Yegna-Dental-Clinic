@@ -17,6 +17,7 @@
   "dependencies": {
     "@yegna/db": "workspace:*",
     "@yegna/shared": "workspace:*",
+    "@yegna/time": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.17",
     "zod": "^4.6.7"

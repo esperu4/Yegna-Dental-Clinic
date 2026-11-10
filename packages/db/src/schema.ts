@@ -44,7 +44,11 @@ export const syncOps = sqliteTable(
     result: text('result').notNull(),
     appliedAt: integer('applied_at').notNull(),
   },
-  (t) => [index('sync_ops_applied_at_idx').on(t.appliedAt)],
+  (t) => [
+    index('sync_ops_applied_at_idx').on(t.appliedAt),
+    // Per-device daily op budget (apps/api/src/routes/sync.ts).
+    index('sync_ops_device_applied_idx').on(t.deviceId, t.appliedAt),
+  ],
 );
 
 export const users = sqliteTable(

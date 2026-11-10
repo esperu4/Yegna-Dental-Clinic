@@ -1,9 +1,11 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { getDb } from './lib/db.ts';
+import { meterD1 } from './lib/queryMeter.ts';
 import type { AppEnv } from './lib/http.ts';
 import { admin } from './routes/admin.ts';
 import { auth } from './routes/auth.ts';
+import { sync } from './routes/sync.ts';
 
 const app = new Hono<AppEnv>();
 
@@ -27,7 +29,10 @@ app.use('*', (c, next) =>
 );
 
 app.use('*', async (c, next) => {
-  c.set('db', getDb(c.env.DB));
+  // Every query is counted against the per-invocation D1 limit (see lib/queryMeter.ts).
+  const meter = meterD1(c.env.DB);
+  c.set('meter', meter);
+  c.set('db', getDb(meter.d1));
   await next();
 });
 
@@ -39,6 +44,7 @@ app.get('/health', async (c) => {
 
 app.route('/', auth);
 app.route('/admin', admin);
+app.route('/sync', sync);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 app.onError((err, c) => {
