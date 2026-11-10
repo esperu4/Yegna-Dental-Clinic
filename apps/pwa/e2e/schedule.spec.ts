@@ -96,7 +96,18 @@ test('schedule: approval, card actions, lunch warning, week view, header switche
   );
   await doctor.getByRole('button', { name: 'Switch language (Amharic / English)' }).click();
   await expect(doctor.getByRole('button', { name: 'ማስተካከያ' })).toBeVisible();
-  await doctor.getByRole('button', { name: 'ቋንቋ ቀይር (አማርኛ / እንግሊዝኛ)' }).click();
+  // Wait until this last change is saved to the account before reloading (other tests sign in as
+  // the same Doctor and expect English).
+  await Promise.all([
+    doctor.waitForResponse(
+      (r) =>
+        r.url().endsWith('/me') &&
+        r.request().method() === 'PATCH' &&
+        (r.request().postData() ?? '').includes('"locale":"en"') &&
+        r.ok(),
+    ),
+    doctor.getByRole('button', { name: 'ቋንቋ ቀይር (አማርኛ / እንግሊዝኛ)' }).click(),
+  ]);
   await expect(doctor.getByRole('button', { name: 'Settings' })).toBeVisible();
   // The choice belongs to the account: it survives a reload.
   await doctor.reload();

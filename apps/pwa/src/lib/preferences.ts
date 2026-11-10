@@ -37,32 +37,34 @@ export function createPreferences(deps: { db?: YegnaDb; session?: Session } = {}
     }
   }
 
-  /** Apply now on this device; save to the account now or as soon as the device is online. */
+  /**
+   * Apply now on this device and save to the account. The change is written to the device first
+   * and removed only once the server has it, so closing or reloading the app mid-save loses
+   * nothing: `flush` sends it at the next start.
+   */
   async function set(patch: PreferencePatch): Promise<void> {
     const current = auth.current.value;
     if (!current) return;
     await auth.updateUser({ ...current.user, ...patch });
-    await inOrder(async () => {
-      const pending = { ...(await store.getMeta<PreferencePatch>(PENDING_KEY)), ...patch };
-      if (await send(pending)) await store.meta.delete(PENDING_KEY);
-      else await store.setMeta(PENDING_KEY, pending);
-    });
+    await store.setMeta(PENDING_KEY, { ...(await store.getMeta<PreferencePatch>(PENDING_KEY)), ...patch });
+    await flush();
   }
 
-  /** Send a change made offline (call on start and when the device comes back online). */
+  /** Send the change not yet saved to the account (after a change, on start, back online). */
   function flush(): Promise<void> {
     return inOrder(async () => {
       const pending = await store.getMeta<PreferencePatch>(PENDING_KEY);
       if (!pending || !auth.current.value) return;
       try {
-        if (await send(pending)) await store.meta.delete(PENDING_KEY);
+        if (!(await send(pending))) return; // offline: kept for later
       } catch (err) {
         // A refused change (4xx: e.g. signed out meanwhile) is dropped; the account keeps its
         // value. A server error keeps it for the next try.
-        if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
-          await store.meta.delete(PENDING_KEY);
-        }
+        if (!(err instanceof ApiError && err.status >= 400 && err.status < 500)) return;
       }
+      // Remove it only if no newer change arrived meanwhile (that one is sent next).
+      const now = await store.getMeta<PreferencePatch>(PENDING_KEY);
+      if (JSON.stringify(now) === JSON.stringify(pending)) await store.meta.delete(PENDING_KEY);
     });
   }
 

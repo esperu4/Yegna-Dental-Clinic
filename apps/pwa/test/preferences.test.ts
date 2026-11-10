@@ -54,6 +54,18 @@ describe('preferences', () => {
     expect(session.current.value?.user.locale).toBe('en');
   });
 
+  it('keeps a change that was still being saved when the app closed, and sends it at the next start', async () => {
+    const { server, prefs, db, session } = await setup();
+    server.offline = true; // the save can't finish (as when the page is reloaded mid-request)
+    await prefs.set({ locale: 'en' });
+    expect(await db.getMeta('pendingPreferences')).toEqual({ locale: 'en' });
+    server.offline = false;
+    const restarted = createPreferences({ db, session });
+    await restarted.flush();
+    expect(server.patches.at(-1)).toEqual({ locale: 'en' });
+    expect(await db.getMeta('pendingPreferences')).toBeUndefined();
+  });
+
   it('works offline and sends the change once back online', async () => {
     const { server, prefs, db } = await setup();
     server.offline = true;
