@@ -84,7 +84,7 @@ test('Doctor sets up the clinic, adds Staff; Staff enrols; Doctor revokes the ph
   await staff.getByRole('button', { name: 'Continue' }).click();
   // Hana's account is in Amharic (the default), so the app switches to her language.
   await expect(staff.getByRole('heading', { name: 'ዛሬ' })).toBeVisible();
-  await expect(staff.getByText('Hana')).toBeVisible();
+  await expect(staff.getByRole('button', { name: 'አዲስ ቀጠሮ' })).toBeVisible();
   await staff.getByRole('button', { name: 'ማስተካከያ' }).click();
   await expect(staff.getByRole('button', { name: /የሠራተኞች መለያዎች/ })).toHaveCount(0);
 

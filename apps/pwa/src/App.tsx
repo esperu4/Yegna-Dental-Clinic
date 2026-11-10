@@ -5,7 +5,8 @@ import { session } from './lib/session.ts';
 import { sync } from './lib/sync.ts';
 import { Devices, Users } from './screens/Admin.tsx';
 import { ClinicHours, Procedures, SetupWizard } from './screens/ClinicSetup.tsx';
-import { Home } from './screens/Home.tsx';
+import { Holidays } from './screens/Holidays.tsx';
+import { Home } from './screens/Today.tsx';
 import { Lock } from './screens/Lock.tsx';
 import { Settings } from './screens/Settings.tsx';
 import { Welcome } from './screens/Welcome.tsx';
@@ -53,6 +54,8 @@ export function App() {
       return isDoctor ? <Procedures /> : <Home />;
     case 'hours':
       return isDoctor ? <ClinicHours /> : <Home />;
+    case 'holidays':
+      return isDoctor ? <Holidays /> : <Home />;
     case 'wizard':
       return isDoctor ? <SetupWizard /> : <Home />;
     default:

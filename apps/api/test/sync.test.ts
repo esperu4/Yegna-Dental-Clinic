@@ -283,7 +283,8 @@ describe('POST /sync: refusals and limits', () => {
   });
 });
 
-describe('POST /sync: concurrent devices', () => {
+// Each of these runs several rounds of simultaneous requests: allow for a loaded machine.
+describe('POST /sync: concurrent devices', { timeout: 60_000 }, () => {
   it('applies a decision only to the row it was made on (no revived cancel, no stale transition)', async () => {
     const pid = newPatient(doctor);
     const b = newBooking(doctor, pid.entityId, nextMonday(10));

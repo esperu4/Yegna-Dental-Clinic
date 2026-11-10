@@ -11,6 +11,7 @@ import { session } from '../lib/session.ts';
 const DOCTOR_LINKS: readonly [Route, Parameters<typeof t>[0]][] = [
   ['procedures', 'settings.procedures'],
   ['hours', 'settings.hours'],
+  ['holidays', 'settings.holidays'],
   ['users', 'settings.users'],
   ['devices', 'settings.devices'],
   ['wizard', 'settings.wizard'],

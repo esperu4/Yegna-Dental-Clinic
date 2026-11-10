@@ -298,3 +298,255 @@ fieldset.card legend {
   justify-content: space-between;
   margin-top: 8px;
 }
+
+/* Schedule: Today, Week, booking sheet (PRD §8 items 3–6). */
+.segmented.compact button {
+  min-height: 40px;
+  padding: 0 10px;
+}
+.day-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+}
+.counters {
+  margin: 0;
+  color: var(--muted);
+}
+.waiting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.chip-button {
+  min-height: 40px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+}
+.timeline {
+  position: relative;
+  margin-left: 64px;
+  border-left: 1px solid var(--line);
+  cursor: copy;
+}
+.hour {
+  position: absolute;
+  left: -64px;
+  right: 0;
+  border-top: 1px dashed var(--line);
+  pointer-events: none;
+}
+.hour span {
+  display: block;
+  width: 60px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  transform: translateY(-50%);
+  background: var(--bg);
+}
+.band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  font-size: 0.75rem;
+  color: var(--muted);
+  padding: 2px 8px;
+}
+.band.lunch {
+  background: var(--surface);
+}
+.band.block {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--surface),
+    var(--surface) 6px,
+    var(--line) 6px,
+    var(--line) 12px
+  );
+}
+.booking {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  min-height: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 2px 8px;
+  padding: 4px 8px;
+  text-align: left;
+  border-left: 6px solid var(--brand);
+  background: var(--bg);
+  overflow: hidden;
+  cursor: pointer;
+}
+.booking-name {
+  font-weight: 600;
+}
+.booking.provisional {
+  border-style: dashed;
+}
+.booking.status-clash {
+  border-color: var(--danger);
+  background: var(--error-bg);
+}
+.booking.status-done,
+.booking.status-no_show {
+  opacity: 0.6;
+}
+.status {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.status.status-approved {
+  background: var(--brand-soft);
+}
+.status.status-clash {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.status.status-pending_approval {
+  background: var(--warn-bg);
+}
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  font-size: 2rem;
+  background: var(--brand);
+  color: var(--brand-fg);
+  border: none;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 25%);
+}
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 40%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 10;
+}
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: 92dvh;
+  overflow-y: auto;
+  background: var(--bg);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 16px 16px 24px;
+}
+.suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.suggestions button {
+  width: 100%;
+  text-align: left;
+  background: var(--brand-soft);
+}
+.picked {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chips button[aria-pressed='true'] {
+  font-weight: 600;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.stepper button {
+  min-width: 48px;
+  font-size: 1.25rem;
+}
+.week {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.week button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  text-align: left;
+}
+.week-day,
+.week-fill {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.week-fill {
+  align-items: flex-end;
+  min-width: 45%;
+}
+.meter {
+  display: block;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+}
+.meter span {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+}
+.notices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.notices li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+a.button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--fg);
+  text-decoration: none;
+}
