@@ -6,6 +6,7 @@ import type { AppEnv } from './lib/http.ts';
 import { admin } from './routes/admin.ts';
 import { auth } from './routes/auth.ts';
 import { sync } from './routes/sync.ts';
+import { telegram } from './routes/telegram.ts';
 import { runHourly } from './jobs/dispatch.ts';
 
 const app = new Hono<AppEnv>();
@@ -46,6 +47,7 @@ app.get('/health', async (c) => {
 app.route('/', auth);
 app.route('/admin', admin);
 app.route('/sync', sync);
+app.route('/', telegram);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 app.onError((err, c) => {

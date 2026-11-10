@@ -41,7 +41,13 @@ export async function runHourly(env: Env, now = Date.now(), notifier?: Notifier)
     local: utcToLocal(now),
     pwaUrl: env.PWA_ORIGIN,
   };
-  const team = await linkedTeam(ctx.db);
+  let team;
+  try {
+    team = await linkedTeam(ctx.db);
+  } catch (err) {
+    console.error('cron_job_failed', 'team', err instanceof Error ? err.name : 'unknown');
+    return;
+  }
   for (const [name, job] of TEAM_JOBS) {
     try {
       await job(ctx, team);

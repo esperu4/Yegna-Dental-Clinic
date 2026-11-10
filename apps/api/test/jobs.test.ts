@@ -140,7 +140,42 @@ describe('hourly cron: team jobs (PRD §13, §16)', () => {
     await runHourly(env, at(morning, 10), telegram);
     const digests = telegram.to(DOCTOR_CHAT, '2 bookings waiting');
     expect(digests).toHaveLength(1);
-    expect(digests[0]!.message.buttons?.[0]?.[0]).toMatchObject({ data: 'approve_all' });
+    expect(digests[0]!.message.buttons?.[0]?.[0]).toMatchObject({
+      data: expect.stringMatching(/^all:\d{4}-\d{2}-\d{2}T\d{2}$/),
+    });
+  });
+
+  it('records only the bookings a digest listed, and lists the rest first next time', async () => {
+    // 25 bookings waiting: Monday 09:00–15:00 every 15 min (seeded straight into the database).
+    const patientId = uuidv7();
+    await env.DB.prepare(
+      "INSERT INTO patients (id, name, phone_e164, version, updated_at) VALUES (?, 'Many', '+251911999999', 1, 0)",
+    )
+      .bind(patientId)
+      .run();
+    for (let i = 0; i < 25; i++) {
+      await env.DB.prepare(
+        `INSERT INTO bookings (id, patient_id, start_at, duration_min, status, created_by, version, updated_at)
+         VALUES (?, ?, ?, 15, 'pending_approval', ?, 1, 0)`,
+      )
+        .bind(uuidv7(), patientId, at(monday(), 9, i * 15), staff.user.id)
+        .run();
+    }
+    const telegram = new FakeTelegram();
+    const morning = addDays(sunday(), -2);
+    await runHourly(env, at(morning, 8), telegram);
+    const first = telegram.to(DOCTOR_CHAT, '25 bookings waiting');
+    expect(first).toHaveLength(1);
+    expect(first[0]!.message.text).toContain('…and 5 more');
+    const items = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM notification_log WHERE kind = 'digest_item'",
+    ).first<{ n: number }>();
+    expect(items?.n).toBe(20);
+    // Next hour: the 5 not yet shown come first (14:00 onwards).
+    await runHourly(env, at(morning, 9), telegram);
+    const second = telegram.to(DOCTOR_CHAT, '25 bookings waiting');
+    expect(second).toHaveLength(2);
+    expect(second[1]!.message.text.split(String.fromCharCode(10))[1]).toContain('14:00');
   });
 
   it('sends no digest at night', async () => {

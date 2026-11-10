@@ -67,7 +67,15 @@ export async function resetDb(env: Env) {
   const tables = await env.DB.prepare(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name NOT LIKE 'd1_%'",
   ).all<{ name: string }>();
-  const order = ['audit_log', 'import_rows', 'patient_requests', 'bookings', 'imports', 'devices'];
+  const order = [
+    'audit_log',
+    'import_rows',
+    'patient_requests',
+    'bookings',
+    'imports',
+    'devices',
+    'telegram_link_codes',
+  ];
   const names = tables.results
     .map((t) => t.name)
     .sort((a, b) => {

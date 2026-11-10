@@ -20,6 +20,7 @@ import { deliverOnce, markSent, sentKeys } from '../notify/deliver.ts';
 import {
   type BookingLine,
   type Recipient,
+  MAX_LINES,
   approvalDigest,
   callListMessage,
   movableHolidayReminder,
@@ -66,6 +67,7 @@ function bookingsWhere(db: Db, ...conditions: Parameters<typeof and>) {
   return db
     .select({
       id: bookings.id,
+      version: bookings.version,
       patientId: bookings.patientId,
       startAt: bookings.startAt,
       durationMin: bookings.durationMin,
@@ -86,6 +88,7 @@ function bookingsWhere(db: Db, ...conditions: Parameters<typeof and>) {
 
 const lineOf = (b: BookingWithPatient): BookingLine => ({
   id: b.id,
+  version: b.version,
   // An erased patient has no name left (ADR 0007).
   patientName: b.patientDeletedAt === null ? b.patientName : '…',
   startAt: b.startAt,
@@ -95,11 +98,13 @@ const lineOf = (b: BookingWithPatient): BookingLine => ({
 /** Hourly: bookings still waiting for approval less than 24 h before their start, once each (§10). */
 export async function unapprovedAlerts(ctx: JobContext, team: Recipient[]) {
   if (team.length === 0) return;
+  // Bookings of an erased patient can't be acted on (ADR 0007): no alert, no Approve button.
   const due = await bookingsWhere(
     ctx.db,
     eq(bookings.status, 'pending_approval'),
     gt(bookings.startAt, ctx.now),
     lt(bookings.startAt, ctx.now + UNAPPROVED_ALERT_MS + 1),
+    isNull(patients.deletedAt),
   );
   for (const booking of due) {
     for (const r of team) {
@@ -115,7 +120,11 @@ export async function unapprovedAlerts(ctx: JobContext, team: Recipient[]) {
   }
 }
 
-/** Hourly 07:00–21:00: to the Doctor, when bookings are waiting that no digest has listed yet. */
+/**
+ * Hourly 07:00–21:00: to the Doctor, when bookings are waiting that no digest has shown yet.
+ * Unshown bookings are listed first, at most `MAX_LINES`; each shown booking is recorded with the
+ * digest's key and its version, so "Approve listed" approves exactly those, if unchanged.
+ */
 export async function approvalDigests(ctx: JobContext, team: Recipient[]) {
   const hour = Math.floor(ctx.local.minutes / 60);
   const doctors = team.filter((r) => r.role === 'doctor');
@@ -124,35 +133,50 @@ export async function approvalDigests(ctx: JobContext, team: Recipient[]) {
     ctx.db,
     eq(bookings.status, 'pending_approval'),
     gt(bookings.startAt, ctx.now),
+    isNull(patients.deletedAt),
   );
   if (pending.length === 0) return;
+  const digestKey = `${ctx.local.date}T${String(hour).padStart(2, '0')}`;
   for (const r of doctors) {
-    if (!hasBudget(ctx, 2)) return;
-    const listed = await sentKeys(
+    if (!hasBudget(ctx, 3)) return;
+    const seen = await sentKeys(
       ctx.db,
-      'digest_item',
+      'digest_seen',
       r.chatId,
       pending.map((b) => b.id),
     );
-    const fresh = pending.filter((b) => !listed.has(b.id));
+    const fresh = pending.filter((b) => !seen.has(b.id));
     if (fresh.length === 0) continue;
+    const ordered = [...fresh, ...pending.filter((b) => seen.has(b.id))];
+    const shown = ordered.slice(0, MAX_LINES);
     const result = await deliverOnce(
       ctx.db,
       ctx.notifier,
-      { kind: 'approval_digest', key: `hour:${ctx.local.date}T${hour}`, chatId: r.chatId },
-      () => approvalDigest(r, pending.map(lineOf)),
+      { kind: 'approval_digest', key: `hour:${digestKey}`, chatId: r.chatId },
+      () => approvalDigest(r, ordered.map(lineOf), digestKey),
       ctx.now,
     );
-    if (result === 'sent')
-      await markSent(
-        ctx.db,
-        'digest_item',
-        r.chatId,
-        fresh.map((b) => b.id),
-        ctx.now,
-      );
+    if (result !== 'sent') continue;
+    await markSent(
+      ctx.db,
+      'digest_seen',
+      r.chatId,
+      shown.map((b) => b.id),
+      ctx.now,
+    );
+    await markSent(
+      ctx.db,
+      'digest_item',
+      r.chatId,
+      shown.map((b) => digestItemKey(digestKey, b)),
+      ctx.now,
+    );
   }
 }
+
+/** A booking listed in a digest: `<digest>|<booking id>|<version shown>`. */
+export const digestItemKey = (digestKey: string, b: { id: string; version: number }) =>
+  `${digestKey}|${b.id}|${b.version}`;
 
 /** From the Doctor's summary time (19:00 by default) until midnight: tomorrow's schedule, if open. */
 export async function tomorrowSummaries(ctx: JobContext, team: Recipient[]) {
@@ -241,4 +265,10 @@ function asPatientRow(b: BookingWithPatient): PatientRow {
     telegramLinked: b.patientChatId !== null,
     deletedAt: b.patientDeletedAt,
   } as PatientRow;
+}
+
+/** Upcoming bookings of a day (not cancelled or no-show) as message lines, for /today and /tomorrow. */
+export async function bookingLinesBetween(db: Db, from: number, to: number): Promise<BookingLine[]> {
+  const rows = await bookingsWhere(db, gte(bookings.startAt, from), lt(bookings.startAt, to));
+  return rows.filter((b) => b.status !== 'cancelled' && b.status !== 'no_show').map(lineOf);
 }

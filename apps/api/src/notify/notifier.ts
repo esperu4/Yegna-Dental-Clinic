@@ -13,6 +13,11 @@ export interface OutgoingMessage {
   buttons?: MessageButton[][];
 }
 
+/** Telegram refused the message for good (bot blocked by the user, bad request): don't retry. */
+export class PermanentSendError extends Error {
+  override name = 'PermanentSendError';
+}
+
 export interface Notifier {
   send(chatId: string, message: OutgoingMessage): Promise<void>;
 }
@@ -22,6 +27,19 @@ export function telegramNotifier(token: string): Notifier {
   const api = new Api(token);
   return {
     async send(chatId, message) {
+      try {
+        await sendTo(chatId, message);
+      } catch (err) {
+        if (err instanceof GrammyError && (err.error_code === 400 || err.error_code === 403)) {
+          throw new PermanentSendError(`telegram_${err.error_code}`);
+        }
+        throw err;
+      }
+    },
+  };
+
+  async function sendTo(chatId: string, message: OutgoingMessage) {
+    {
       await api.sendMessage(chatId, message.text, {
         ...(message.buttons
           ? {
@@ -35,8 +53,8 @@ export function telegramNotifier(token: string): Notifier {
             }
           : {}),
       });
-    },
-  };
+    }
+  }
 }
 
 /** Error kind for logs: never the message (it may hold names). */

@@ -10,7 +10,7 @@ import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { notificationLog } from '@yegna/db';
 import { uuidv7 } from '@yegna/shared';
 import type { Db } from '../lib/db.ts';
-import { type Notifier, type OutgoingMessage, sendErrorKind } from './notifier.ts';
+import { type Notifier, type OutgoingMessage, PermanentSendError, sendErrorKind } from './notifier.ts';
 
 /** A pending row older than this belongs to a run that never finished; it may be claimed again. */
 export const STALE_PENDING_MS = 30 * 60_000;
@@ -22,7 +22,7 @@ export interface NotificationKey {
   chatId: string;
 }
 
-export type DeliveryResult = 'sent' | 'skipped' | 'failed';
+export type DeliveryResult = 'sent' | 'skipped' | 'failed' | 'dropped';
 
 export async function deliverOnce(
   db: Db,
@@ -37,8 +37,9 @@ export async function deliverOnce(
     await notifier.send(target.chatId, await render());
   } catch (err) {
     console.error('notify_failed', target.kind, sendErrorKind(err));
-    await db.update(notificationLog).set({ status: 'failed' }).where(where).run();
-    return 'failed';
+    const status = err instanceof PermanentSendError ? 'dropped' : 'failed';
+    await db.update(notificationLog).set({ status }).where(where).run();
+    return status;
   }
   await db.update(notificationLog).set({ status: 'sent', sentAt: now }).where(where).run();
   return 'sent';

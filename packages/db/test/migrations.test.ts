@@ -60,6 +60,7 @@ describe('migrations + seed', () => {
       'settings',
       'sync_ops',
       'sync_seq',
+      'telegram_link_codes',
       'users',
     ]);
   });

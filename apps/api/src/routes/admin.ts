@@ -110,6 +110,8 @@ admin.patch('/users/:id', async (c) => {
         name: body.name ?? target.name,
         ...(pin ? { pinHash: pin.hash, pinSalt: pin.salt } : {}),
         disabledAt,
+        // A disabled user's Telegram is unlinked: no team messages reach them any more.
+        ...(body.disabled ? { telegramChatId: null } : {}),
         version: CURRENT_VERSION,
         updatedAt: now,
         updatedBy: session.user.id,

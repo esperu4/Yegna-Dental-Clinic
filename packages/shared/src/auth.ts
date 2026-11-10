@@ -94,4 +94,5 @@ export type ApiErrorCode =
   | 'already_set_up'
   | 'name_taken'
   | 'cannot_change_self'
-  | 'conflict';
+  | 'conflict'
+  | 'not_configured';

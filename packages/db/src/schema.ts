@@ -102,6 +102,22 @@ export const authAttempts = sqliteTable('auth_attempts', {
   updatedAt: integer('updated_at').notNull(),
 });
 
+/**
+ * One-time codes linking a team member's Telegram chat to their account (PRD §13): created in the
+ * PWA, used once by `/start <code>` within 10 minutes. Only a SHA-256 of the code is kept.
+ */
+export const telegramLinkCodes = sqliteTable(
+  'telegram_link_codes',
+  {
+    codeHash: text('code_hash').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [index('telegram_link_codes_user_idx').on(t.userId)],
+);
+
 export const patients = sqliteTable(
   'patients',
   {
@@ -308,7 +324,8 @@ export const notificationLog = sqliteTable(
     /** Empty string (not NULL) for messages not tied to a booking, so the unique key still applies. */
     bookingId: text('booking_id').notNull().default(''),
     sentAt: integer('sent_at'),
-    status: text('status', { enum: ['pending', 'sent', 'failed'] }).notNull(),
+    /** `dropped`: Telegram refused it for good (bot blocked, bad request); never retried. */
+    status: text('status', { enum: ['pending', 'sent', 'failed', 'dropped'] }).notNull(),
   },
   (t) => [
     uniqueIndex('notification_log_idem_uq').on(t.kind, t.bookingId, t.targetChatId),
