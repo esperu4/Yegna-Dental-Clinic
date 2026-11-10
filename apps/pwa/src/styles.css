@@ -594,3 +594,56 @@ a.button {
   font-size: 0.85rem;
   font-weight: 600;
 }
+
+/* Sync status pill (PRD §7.6). */
+.bar {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.pill-wrap {
+  position: relative;
+}
+.sync-pill {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.sync-pill .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+.pill-waiting .dot {
+  background: #d4a106;
+}
+.pill-offline .dot,
+.pill-problem .dot {
+  background: var(--danger);
+}
+.pill-problem {
+  border-color: var(--danger);
+}
+.pill-details {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 5;
+  width: min(280px, 80vw);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 18%);
+}
+.pill-details p {
+  margin: 0;
+}

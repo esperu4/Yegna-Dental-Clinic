@@ -244,6 +244,96 @@ describe('device sync', () => {
   });
 });
 
+describe('device sync: status and summary (PRD §7.6, §7.7)', () => {
+  it('remembers when the phone went offline, and clears it once a sync works again', async () => {
+    let clock = 5_000;
+    const { server, db, session } = await setup();
+    const sync = createSync({ db, session, now: () => clock });
+    server.offline = true;
+    await sync.syncNow();
+    expect(sync.offlineSince.value).toBe(5_000);
+    clock = 9_000;
+    await sync.syncNow(); // still offline: keeps the first time
+    expect(sync.offlineSince.value).toBe(5_000);
+    server.offline = false;
+    await sync.syncNow();
+    expect(sync.offlineSince.value).toBeNull();
+    expect(sync.lastSyncedAt.value).toBe(9_000);
+  });
+
+  it('clears the offline time when the server answers, even with an error', async () => {
+    let clock = 5_000;
+    const { server, db, session } = await setup();
+    const sync = createSync({ db, session, now: () => clock });
+    server.offline = true;
+    await sync.syncNow();
+    server.offline = false;
+    server.status = 500;
+    await sync.syncNow();
+    expect(sync.offlineSince.value).toBeNull();
+    expect(sync.state.value).toBe('error');
+    clock = 20_000;
+    server.offline = true;
+    await sync.syncNow();
+    expect(sync.offlineSince.value).toBe(20_000); // not the old 5_000
+  });
+
+  it('remembers the last sync time when the app is reopened', async () => {
+    let clock = 7_000;
+    const { db, session } = await setup();
+    await createSync({ db, session, now: () => clock }).syncNow();
+    const reopened = createSync({ db, session, now: () => clock });
+    expect(reopened.lastSyncedAt.value).toBeNull();
+    await reopened.refresh();
+    expect(reopened.lastSyncedAt.value).toBe(7_000);
+  });
+
+  it('does not count the first fill as "new from" anyone', async () => {
+    const { server, db, session } = await setup();
+    server.rows.set('b-other', {
+      entity: 'bookings',
+      id: 'b-other',
+      createdBy: 'someone-else',
+      version: ++server.version,
+      updatedAt: 1,
+      updatedBy: 'someone-else',
+      deletedAt: null,
+    });
+    const summaries: unknown[] = [];
+    const sync = createSync({ db, session, onSummary: (s) => summaries.push(s) });
+    await sync.syncNow(); // first fill
+    expect(summaries).toEqual([]);
+    server.rows.set('b-new', {
+      entity: 'bookings',
+      id: 'b-new',
+      createdBy: 'someone-else',
+      version: ++server.version,
+      updatedAt: 1,
+      updatedBy: 'someone-else',
+      deletedAt: null,
+    });
+    await sync.syncNow();
+    expect(summaries).toEqual([{ bookingsSent: 0, fromOthers: { 'someone-else': 1 }, toFix: 0 }]);
+  });
+
+  it('reports a summary only when something happened', async () => {
+    const { db, session } = await setup();
+    const summaries: unknown[] = [];
+    const sync = createSync({ db, session, onSummary: (s) => summaries.push(s) });
+    await sync.syncNow();
+    expect(summaries).toEqual([]);
+    await sync.write('bookings', 'create', {
+      patientId: 'p',
+      procedureId: null,
+      startAt: 1,
+      durationMin: 60,
+      name: 'x',
+    });
+    await sync.syncNow();
+    expect(summaries).toEqual([{ bookingsSent: 1, fromOthers: {}, toFix: 0 }]);
+  });
+});
+
 describe('device sync: robustness', () => {
   it('keeps unanswered ops in the outbox and sends them in the next round', async () => {
     const { server, db, sync } = await setup();

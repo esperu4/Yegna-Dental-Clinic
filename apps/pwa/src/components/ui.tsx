@@ -5,6 +5,7 @@ import { type MessageKey, locale, t } from '../i18n/index.ts';
 import { ApiError } from '../lib/api.ts';
 import { session } from '../lib/session.ts';
 import { QuickPrefs } from './QuickPrefs.tsx';
+import { SyncPill } from './SyncPill.tsx';
 
 export function Screen(props: { title: string; children: ComponentChildren; back?: () => void }) {
   return (
@@ -16,7 +17,12 @@ export function Screen(props: { title: string; children: ComponentChildren; back
           </button>
         ) : null}
         <h1>{props.title}</h1>
-        {session.status.value === 'ready' ? <QuickPrefs /> : null}
+        {session.status.value === 'ready' ? (
+          <>
+            <SyncPill />
+            <QuickPrefs />
+          </>
+        ) : null}
       </header>
       <div class="content">{props.children}</div>
     </main>

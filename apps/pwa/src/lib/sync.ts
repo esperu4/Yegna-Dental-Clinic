@@ -21,6 +21,8 @@ import {
 import { ApiError } from './api.ts';
 import { type Notice, type OutboxEntry, type YegnaDb, db as defaultDb } from './db.ts';
 import { applyLocally } from './localOps.ts';
+import { showSyncNotification } from './syncNotification.ts';
+import { SummaryBuilder, type SyncSummary, somethingHappened } from './syncStatus.ts';
 import { type Session, session as defaultSession } from './session.ts';
 
 export const AUTO_SYNC_EVERY_MS = 30_000;
@@ -31,6 +33,8 @@ const CURSOR_KEY = 'syncCursor';
 const FILLED_KEY = 'syncFilled';
 /** Until this time the device only pulls: the server held its ops back (daily budget). */
 const HOLD_OPS_KEY = 'syncHoldOpsUntil';
+/** When this device last finished a sync (survives reopening the app). */
+const LAST_SYNC_KEY = 'syncLastAt';
 /** Notices older than this are dropped, so entered patient details don't linger (PRD §18). */
 export const NOTICE_TTL_MS = 30 * 86_400_000;
 
@@ -38,7 +42,15 @@ export type SyncState = 'idle' | 'syncing' | 'offline' | 'error';
 
 type AnyRow = Record<string, unknown>;
 
-export function createSync(deps: { db?: YegnaDb; session?: Session; now?: () => number } = {}) {
+export function createSync(
+  deps: {
+    db?: YegnaDb;
+    session?: Session;
+    now?: () => number;
+    /** Called after a sync run in which something happened (PRD §7.7: the sync notification). */
+    onSummary?: (summary: SyncSummary) => void;
+  } = {},
+) {
   const store = deps.db ?? defaultDb;
   const auth = deps.session ?? defaultSession;
   const now = deps.now ?? Date.now;
@@ -46,7 +58,11 @@ export function createSync(deps: { db?: YegnaDb; session?: Session; now?: () => 
   const state = signal<SyncState>('idle');
   const lastSyncedAt = signal<number | null>(null);
   const lastError = signal<string | null>(null);
+  /** When the device last went from online to offline; null while online (PRD §7.6). */
+  const offlineSince = signal<number | null>(null);
   const pendingCount = signal(0);
+  /** Until when the server holds this device's ops back (daily budget); null if not held. */
+  const heldUntil = signal<number | null>(null);
   /** Refused ops and clashes, oldest first, until dismissed (stored, so they survive a reload). */
   const notices = signal<Notice[]>([]);
 
@@ -62,6 +78,9 @@ export function createSync(deps: { db?: YegnaDb; session?: Session; now?: () => 
   ];
 
   async function refresh() {
+    lastSyncedAt.value ??= (await store.getMeta<number>(LAST_SYNC_KEY)) ?? null;
+    const held = (await store.getMeta<number>(HOLD_OPS_KEY)) ?? 0;
+    heldUntil.value = held > now() ? held : null;
     await store.notices
       .where('at')
       .below(now() - NOTICE_TTL_MS)
@@ -130,6 +149,15 @@ export function createSync(deps: { db?: YegnaDb; session?: Session; now?: () => 
     const signedIn = auth.current.value;
     if (!signedIn) return;
     state.value = 'syncing';
+    const summary = new SummaryBuilder();
+    const report = () => {
+      // A notification problem must never turn a good sync into a failed one.
+      try {
+        if (somethingHappened(summary.summary)) deps.onSummary?.(summary.summary);
+      } catch {
+        /* ignore */
+      }
+    };
     try {
       for (let round = 0; round < MAX_ROUNDS; round++) {
         const holdOps = ((await store.getMeta<number>(HOLD_OPS_KEY)) ?? 0) > now();
@@ -139,24 +167,50 @@ export function createSync(deps: { db?: YegnaDb; session?: Session; now?: () => 
         const res = await auth.authed<SyncResponse>('/sync', {
           body: { deviceId: signedIn.deviceId, cursor, initial, ops: entries.map((e) => e.op) },
         });
-        await applyResponse(entries, res, signedIn.user.role, initial);
+        const newFromOthers = await applyResponse(entries, res, signedIn.user, initial);
+        summary.add({
+          results: res.results,
+          sent: new Map(entries.map((e) => [e.op.opId, { entity: e.op.entity, entityId: e.op.entityId }])),
+          newFromOthers,
+        });
         if (!res.more && (holdOps || res.retryOpsAfterMs || (await store.outbox.count()) === 0)) break;
         // The server answered none of our ops this time (it ran out of budget): try again later.
         if (!res.more && entries.length > 0 && res.results.length === 0) break;
       }
-      state.value = 'idle';
       lastError.value = null;
+      // The network may have dropped while the last response was arriving: then stay offline.
+      const online = typeof navigator === 'undefined' || navigator.onLine !== false;
+      state.value = online ? 'idle' : 'offline';
+      if (online) offlineSince.value = null;
       lastSyncedAt.value = now();
+      await store.setMeta(LAST_SYNC_KEY, lastSyncedAt.value);
+      report();
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'server_error';
       // A 401 has already wiped the device (session.authed); nothing is left to sync.
       if (err instanceof ApiError && err.status === 401) state.value = 'idle';
       else state.value = code === 'offline' ? 'offline' : 'error';
-      lastError.value = code === 'offline' ? null : code;
+      // Any answer from the server proves the phone was online.
+      if (code === 'offline') offlineSince.value ??= now();
+      else offlineSince.value = null;
+      lastError.value = code === 'offline' || state.value === 'idle' ? null : code;
+      // Earlier rounds of this run may have been applied already: still tell the user.
+      report();
     }
   }
 
-  async function applyResponse(sent: OutboxEntry[], res: SyncResponse, role: Role, initial: boolean) {
+  /**
+   * Applies one response in one transaction. Returns the bookings that are new on this device and
+   * were made by someone else, by user id (for the notification; never during the first fill).
+   */
+  async function applyResponse(
+    sent: OutboxEntry[],
+    res: SyncResponse,
+    user: { id: string; role: Role },
+    initial: boolean,
+  ): Promise<Record<string, number>> {
+    const role = user.role;
+    const newFromOthers: Record<string, number> = {};
     await store.transaction('rw', responseTables(), async () => {
       const sentById = new Map(sent.map((e) => [e.op.opId, e]));
       // Answered ops (applied, clash or refused) leave the outbox; unanswered ones stay for next time.
@@ -218,6 +272,10 @@ export function createSync(deps: { db?: YegnaDb; session?: Session; now?: () => 
           if (entity === 'bookings' && status !== 'clash' && status !== 'needs_fixing') {
             await store.notices.filter((n) => n.entityId === key && n.kind !== 'rejected').delete();
           }
+          const createdBy = (serverRow as { createdBy?: string }).createdBy;
+          if (entity === 'bookings' && !local && !initial && createdBy && createdBy !== user.id) {
+            newFromOthers[createdBy] = (newFromOthers[createdBy] ?? 0) + 1;
+          }
           // Replay ops still waiting for the server, so a newer local edit is not overwritten.
           const row = pendingFor(entity, key).reduce<AnyRow>((r, e) => applyLocally(r, e.op, role), {
             ...serverRow,
@@ -233,6 +291,7 @@ export function createSync(deps: { db?: YegnaDb; session?: Session; now?: () => 
       if (res.retryOpsAfterMs) await store.setMeta(HOLD_OPS_KEY, now() + res.retryOpsAfterMs);
     });
     await refresh();
+    return newFromOthers;
   }
 
   /** Keep syncing while the app is open: every 30 s, when back online and when shown (PRD §7.3). */
@@ -244,13 +303,20 @@ export function createSync(deps: { db?: YegnaDb; session?: Session; now?: () => 
       if (doc.visibilityState === 'visible') void syncNow();
     };
     const timer = setInterval(tick, AUTO_SYNC_EVERY_MS);
+    // Going offline shows at once in the pill, before any sync fails (PRD §7.6).
+    const wentOffline = () => {
+      offlineSince.value ??= now();
+      state.value = 'offline';
+    };
     target.addEventListener('online', tick);
+    target.addEventListener('offline', wentOffline);
     doc.addEventListener('visibilitychange', tick);
     void refresh();
     tick();
     return () => {
       clearInterval(timer);
       target.removeEventListener('online', tick);
+      target.removeEventListener('offline', wentOffline);
       doc.removeEventListener('visibilitychange', tick);
     };
   }
@@ -264,6 +330,8 @@ export function createSync(deps: { db?: YegnaDb; session?: Session; now?: () => 
     state,
     lastSyncedAt,
     lastError,
+    offlineSince,
+    heldUntil,
     pendingCount,
     notices,
     write,
@@ -275,4 +343,4 @@ export function createSync(deps: { db?: YegnaDb; session?: Session; now?: () => 
 }
 
 export type Sync = ReturnType<typeof createSync>;
-export const sync = createSync();
+export const sync = createSync({ onSummary: (summary) => void showSyncNotification(summary) });

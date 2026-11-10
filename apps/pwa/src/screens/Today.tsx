@@ -13,6 +13,7 @@ import type { BookingRow, PatientRow, ProcedureRow } from '@yegna/shared/client'
 import { GRID_STEP_MIN, addDays, localDateOf, weekdayName, weekdayOf } from '@yegna/time';
 import { BookingSheet, type SheetMode } from '../components/BookingSheet.tsx';
 import { QuickPrefs } from '../components/QuickPrefs.tsx';
+import { SyncPill } from '../components/SyncPill.tsx';
 import { BlockList, BlockSheet, DayRuleSheet } from '../components/doctorDay.tsx';
 import { BookingDetails, NoticeList, StatusChip } from '../components/bookingCards.tsx';
 import { locale, t } from '../i18n/index.ts';
@@ -44,6 +45,7 @@ export function Home() {
             {t('day.weekView')}
           </button>
         </div>
+        <SyncPill />
         <QuickPrefs />
         <button type="button" class="icon" onClick={() => go('settings')} aria-label={t('nav.settings')}>
           ⚙

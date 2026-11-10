@@ -128,3 +128,30 @@ test('procedures can be edited and deleted (PRD §8 item 12)', async ({ page }) 
   await edited.getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByRole('listitem').filter({ hasText: 'Dental X-ray' })).toHaveCount(0);
 });
+
+test('the sync pill shows offline, then sends what was booked offline (PRD §7.6)', async ({
+  page,
+  context,
+}) => {
+  await doctorPhone(page, 'Pill test phone');
+  await openDay(page, 3);
+  const pill = page.locator('.sync-pill');
+  await expect(pill).toHaveText('Synced', { timeout: 15_000 });
+
+  await context.setOffline(true);
+  await expect(pill).toHaveText(/Offline since/);
+  await page.getByRole('button', { name: 'New booking' }).click();
+  await page.getByLabel('Phone').fill('0913 44 55 66');
+  await page.getByLabel('Patient name').fill('Offline Patient');
+  await page.getByLabel('Time').selectOption(String(10 * 60));
+  await page.getByRole('button', { name: 'Save' }).click();
+  const booked = page.locator('.booking').filter({ hasText: 'Offline Patient' });
+  await expect(booked.getByText('Not sent yet')).toBeVisible();
+  await pill.click();
+  await expect(page.getByText(/changes are saved on this phone/)).toBeVisible();
+
+  await context.setOffline(false);
+  await page.getByRole('button', { name: 'Sync now' }).click();
+  await expect(pill).toHaveText('Synced', { timeout: 15_000 });
+  await expect(booked.getByText('Approved')).toBeVisible();
+});
