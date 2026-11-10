@@ -390,7 +390,8 @@ fieldset.card legend {
 .booking.provisional {
   border-style: dashed;
 }
-.booking.status-clash {
+.booking.status-clash,
+.booking.status-needs_fixing {
   border-color: var(--danger);
   background: var(--error-bg);
 }
@@ -409,7 +410,8 @@ fieldset.card legend {
 .status.status-approved {
   background: var(--brand-soft);
 }
-.status.status-clash {
+.status.status-clash,
+.status.status-needs_fixing {
   color: var(--danger);
   border-color: var(--danger);
 }
@@ -549,4 +551,46 @@ a.button {
   background: var(--surface);
   color: var(--fg);
   text-decoration: none;
+}
+
+/* Language and calendar switches in every header. */
+.quick-prefs {
+  display: flex;
+  gap: 4px;
+}
+.pill {
+  min-height: 40px;
+  min-width: 44px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Bookings that need attention (clash, needs fixing, outside the day's hours). */
+.attention {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--error-bg);
+}
+.attention h2 {
+  margin: 0;
+  color: var(--danger);
+}
+.attention-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  background: var(--bg);
+}
+.attention-count {
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-weight: 600;
 }

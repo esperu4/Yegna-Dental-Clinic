@@ -82,6 +82,11 @@ export type OpResult =
   | { opId: string; outcome: 'applied'; version: number }
   /** Stored with `status = clash`; `winner` is the booking that keeps the slot (PRD §7.4). */
   | { opId: string; outcome: 'clash'; version: number; winner: string }
+  /**
+   * Stored with `status = needs_fixing`: it breaks a clinic-hours rule (`reason`) that the device
+   * did not know about yet. Shown in red until moved (docs/adr/0007).
+   */
+  | { opId: string; outcome: 'needs_fixing'; version: number; reason: BookingError }
   /** Not stored. The entity's current server row (if any) is in `changes`, so the device can roll back. */
   | { opId: string; outcome: 'rejected'; reason: SyncRejectReason };
 

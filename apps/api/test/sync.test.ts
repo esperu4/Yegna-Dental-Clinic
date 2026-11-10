@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
+  CLASH_STATUSES,
   DEVICE_DAILY_OPS,
   type EnrolResponse,
   type OpResult,
@@ -210,6 +211,155 @@ describe('POST /sync: ops', () => {
     ]);
   });
 
+  it('never stores the values of a refused patient op (e.g. an edit arriving after the delete)', async () => {
+    const p = newPatient(doctor, 'Gone Patient');
+    await sync(doctor, [p]);
+    await sync(doctor, [op(doctor, 'patients', 'delete', {}, { entityId: p.entityId })]);
+    const late = op(
+      staff,
+      'patients',
+      'update',
+      { name: 'Late Edit', note: 'secret' },
+      { entityId: p.entityId },
+    );
+    expect((await sync(staff, [late])).json.results[0]).toMatchObject({ reason: 'not_found' });
+    const rows = await env.DB.prepare(
+      "SELECT diff FROM audit_log WHERE entity = 'patients' AND entity_id = ?",
+    )
+      .bind(p.entityId)
+      .all<{ diff: string | null }>();
+    expect(rows.results.some((r) => r.diff && /Late Edit|secret|Gone/.test(r.diff))).toBe(false);
+    expect(rows.results.some((r) => r.diff?.includes('fieldNames'))).toBe(true);
+  });
+
+  it('erases the deleted patient’s booking notes and their audit values, and syncs that', async () => {
+    const p = newPatient(doctor, 'Note Person');
+    const b = newBooking(doctor, p.entityId, nextMonday(10));
+    b.fields.note = 'sister of Note Person, 0911 000 111';
+    const created = await sync(doctor, [p, b]);
+    await sync(doctor, [
+      op(
+        doctor,
+        'bookings',
+        'update',
+        { status: 'cancelled', cancelReason: 'Note Person is ill' },
+        { entityId: b.entityId },
+      ),
+    ]);
+    const before = created.json.newCursor;
+    const { json } = await sync(
+      doctor,
+      [op(doctor, 'patients', 'delete', {}, { entityId: p.entityId })],
+      before,
+    );
+    const row = await env.DB.prepare('SELECT note, cancel_reason FROM bookings WHERE id = ?')
+      .bind(b.entityId)
+      .first();
+    expect(row).toEqual({ note: null, cancel_reason: null });
+    const audit = await env.DB.prepare(
+      "SELECT diff FROM audit_log WHERE entity = 'bookings' AND entity_id = ?",
+    )
+      .bind(b.entityId)
+      .all<{ diff: string | null }>();
+    expect(audit.results.some((r) => r.diff?.includes('Note Person'))).toBe(false);
+    // Devices receive the cleared booking.
+    expect(json.changes.bookings).toEqual([
+      expect.objectContaining({ id: b.entityId, note: null, cancelReason: null }),
+    ]);
+  });
+
+  it('keeps free text off a deleted patient’s bookings when ops arrive late', async () => {
+    const p = newPatient(doctor, 'Late Person');
+    const b = newBooking(doctor, p.entityId, nextMonday(10));
+    await sync(doctor, [p, b]);
+    await sync(doctor, [op(doctor, 'patients', 'delete', {}, { entityId: p.entityId })]);
+    // A note edit and a cancel made offline before the delete, and a new booking for them.
+    const note = op(
+      staff,
+      'bookings',
+      'update',
+      { note: 'Late Person sister 0911' },
+      { entityId: b.entityId },
+    );
+    const cancel = op(
+      staff,
+      'bookings',
+      'update',
+      { status: 'cancelled', cancelReason: 'Late Person moved away' },
+      { entityId: b.entityId },
+    );
+    const create = newBooking(staff, p.entityId, nextMonday(11));
+    create.fields.note = 'Late Person again';
+    const { json } = await sync(staff, [note, cancel, create]);
+    expect(json.results.map((r) => r.outcome)).toEqual(['applied', 'applied', 'rejected']);
+    const row = await env.DB.prepare('SELECT status, note, cancel_reason FROM bookings WHERE id = ?')
+      .bind(b.entityId)
+      .first();
+    expect(row).toEqual({ status: 'cancelled', note: null, cancel_reason: null });
+    const audit = await env.DB.prepare('SELECT diff FROM audit_log WHERE diff IS NOT NULL').all<{
+      diff: string;
+    }>();
+    expect(audit.results.some((r) => r.diff.includes('Late Person'))).toBe(false);
+  });
+
+  it('pulls every row of a version shared by more rows than a page', async () => {
+    const p = newPatient(doctor, 'Many Bookings');
+    const ops: SyncOp[] = [p];
+    for (let i = 0; i < 6; i++) {
+      const b = newBooking(doctor, p.entityId, nextMonday(9 + i));
+      b.fields.note = `visit ${i}`;
+      ops.push(b);
+    }
+    const created = await sync(doctor, ops);
+    await sync(doctor, [op(doctor, 'patients', 'delete', {}, { entityId: p.entityId })]);
+    // The erase gave all six bookings one version; pull it with pages of 2.
+    const db = getDb(env.DB);
+    let cursor = created.json.newCursor;
+    const notes = new Map<string, unknown>();
+    for (let more = true, rounds = 0; more && rounds < 20; rounds++) {
+      const page = await pull(db, cursor, Date.now(), { pageSize: 2 });
+      for (const b of page.changes.bookings ?? [])
+        notes.set((b as { id: string }).id, (b as { note: unknown }).note);
+      ({ more } = page);
+      cursor = page.newCursor;
+    }
+    expect(notes.size).toBe(6);
+    expect([...notes.values()].every((n) => n === null)).toBe(true);
+  });
+
+  it('erases a deleted patient’s details and audit values, and frees the phone (ADR 0007)', async () => {
+    const p = newPatient(doctor, 'Erase Me');
+    await sync(doctor, [
+      p,
+      op(doctor, 'patients', 'update', { note: 'allergic to x' }, { entityId: p.entityId }),
+    ]);
+    await sync(doctor, [op(doctor, 'patients', 'delete', {}, { entityId: p.entityId })]);
+    const row = await env.DB.prepare(
+      'SELECT name, phone_e164, note, telegram_chat_id, deleted_at FROM patients WHERE id = ?',
+    )
+      .bind(p.entityId)
+      .first();
+    expect(row).toEqual({
+      name: '',
+      phone_e164: '',
+      note: null,
+      telegram_chat_id: null,
+      deleted_at: expect.any(Number),
+    });
+    const audits = await env.DB.prepare(
+      "SELECT action, diff FROM audit_log WHERE entity = 'patients' AND entity_id = ?",
+    )
+      .bind(p.entityId)
+      .all<{ action: string; diff: string | null }>();
+    expect(audits.results.map((a) => a.action)).toEqual(['create', 'update', 'delete']);
+    expect(audits.results.every((a) => a.diff === null || !/Erase Me|allergic|\+251/.test(a.diff))).toBe(
+      true,
+    );
+    // The number is free for a new patient.
+    const again = op(doctor, 'patients', 'create', { name: 'New Person', phoneE164: p.fields.phoneE164 });
+    expect((await sync(doctor, [again])).json.results[0]?.outcome).toBe('applied');
+  });
+
   it('records overwritten values when the device had not seen the latest version (PRD §7.4 step 3)', async () => {
     const p = newPatient(staff, 'First');
     const { json } = await sync(staff, [p]);
@@ -235,14 +385,31 @@ describe('POST /sync: ops', () => {
 });
 
 describe('POST /sync: refusals and limits', () => {
-  it('keeps the values of a refused op in the audit log, so nothing entered is lost', async () => {
+  it('keeps the values of a refused booking in the audit log, so nothing entered is lost', async () => {
+    const p = newPatient(staff);
+    await sync(staff, [p]);
+    const b = op(staff, 'bookings', 'create', {
+      patientId: p.entityId,
+      procedureId: uuidv7(), // a procedure that doesn't exist
+      startAt: nextMonday(10),
+      durationMin: 60,
+    });
+    await sync(staff, [b]);
+    const audit = await env.DB.prepare('SELECT action, diff FROM audit_log WHERE entity_id = ?')
+      .bind(b.entityId)
+      .first<{ action: string; diff: string }>();
+    expect(audit?.action).toBe('rejected:procedure_not_found');
+    expect(JSON.parse(audit!.diff)).toEqual({ kind: 'create', fields: b.fields });
+  });
+
+  it('keeps only field names when the booking was refused because its patient is gone (ADR 0007)', async () => {
     const b = newBooking(staff, uuidv7(), nextMonday(10));
     await sync(staff, [b]);
     const audit = await env.DB.prepare('SELECT action, diff FROM audit_log WHERE entity_id = ?')
       .bind(b.entityId)
       .first<{ action: string; diff: string }>();
     expect(audit?.action).toBe('rejected:patient_not_found');
-    expect(JSON.parse(audit!.diff)).toEqual({ kind: 'create', fields: b.fields });
+    expect(JSON.parse(audit!.diff)).toEqual({ kind: 'create', fieldNames: Object.keys(b.fields) });
   });
 
   it('does not store invalid ops (their answer follows from the op itself)', async () => {
@@ -338,8 +505,12 @@ describe('POST /sync: concurrent devices', { timeout: 60_000 }, () => {
       const blockRow = await env.DB.prepare('SELECT version FROM blocks WHERE id = ?')
         .bind(block.entityId)
         .first<{ version: number }>();
-      // Either the booking landed first (then the block came later), or it was refused.
-      if (row) expect(row.version).toBeLessThan(blockRow!.version);
+      // Never lost, and never an active booking written inside the block: either it landed
+      // first (the block came later), or it was decided after the block and kept as needs_fixing.
+      expect(row).not.toBeNull();
+      const { status } = await bookingStatus(booking.entityId);
+      if (row!.version > blockRow!.version) expect(status).toBe('needs_fixing');
+      else expect(CLASH_STATUSES as readonly string[]).toContain(status);
     }
   });
 
@@ -519,13 +690,115 @@ describe('POST /sync: bookings (PRD §6, §7.4, §10)', () => {
     ['closed_day', () => nextMonday(10) - 24 * 3_600_000, 60], // Sunday
     ['before_open', () => nextMonday(8), 60],
     ['after_close', () => nextMonday(17, 30), 60],
-  ])('refuses a booking that breaks a hard clinic-hours limit: %s', async (reason, start, duration) => {
+  ])(
+    'keeps a booking that breaks a hard clinic-hours limit as needs_fixing: %s',
+    async (reason, start, duration) => {
+      const pid = await patient();
+      const b = newBooking(staff, pid, start(), duration);
+      const { json } = await sync(staff, [b]);
+      expect(json.results[0]).toEqual({
+        opId: b.opId,
+        outcome: 'needs_fixing',
+        version: expect.any(Number),
+        reason,
+      });
+      expect(await bookingStatus(b.entityId)).toEqual({ status: 'needs_fixing', clash_with_id: null });
+    },
+  );
+
+  it('refuses a move into a time outside the hours; the booking keeps its confirmed time', async () => {
     const pid = await patient();
-    const { json } = await sync(staff, [newBooking(staff, pid, start(), duration)]);
-    expect(json.results[0]).toMatchObject({ outcome: 'rejected', reason });
+    const b = newBooking(doctor, pid, nextMonday(10));
+    await sync(doctor, [b]);
+    await sync(doctor, [
+      op(doctor, 'blocks', 'create', { startAt: nextMonday(14), endAt: nextMonday(15), reason: null }),
+    ]);
+    const move = op(staff, 'bookings', 'update', { startAt: nextMonday(14) }, { entityId: b.entityId });
+    expect((await sync(staff, [move])).json.results[0]).toMatchObject({
+      outcome: 'rejected',
+      reason: 'in_block',
+    });
+    const row = await env.DB.prepare('SELECT status, start_at FROM bookings WHERE id = ?')
+      .bind(b.entityId)
+      .first();
+    expect(row).toEqual({ status: 'approved', start_at: nextMonday(10) });
   });
 
-  it('refuses a booking inside a Doctor’s block, but allows lunch', async () => {
+  it('re-checks a needs_fixing booking in place once the hours allow it again', async () => {
+    const pid = await patient();
+    const date = localDateOf(nextMonday(10));
+    const close = op(
+      doctor,
+      'dayRules',
+      'create',
+      {
+        openAt: null,
+        closeAt: null,
+        lunchStart: null,
+        lunchEnd: null,
+        closed: true,
+        note: null,
+      },
+      { entityId: date },
+    );
+    await sync(doctor, [close]);
+    const b = newBooking(staff, pid, nextMonday(10));
+    expect((await sync(staff, [b])).json.results[0]).toMatchObject({
+      outcome: 'needs_fixing',
+      reason: 'closed_day',
+    });
+    // Still closed: the same time is refused and it stays needs_fixing.
+    const same = () => op(staff, 'bookings', 'update', { startAt: nextMonday(10) }, { entityId: b.entityId });
+    expect((await sync(staff, [same()])).json.results[0]).toMatchObject({
+      outcome: 'rejected',
+      reason: 'closed_day',
+    });
+    expect((await bookingStatus(b.entityId)).status).toBe('needs_fixing');
+    // The Doctor opens the day again: the same time now passes.
+    await sync(doctor, [op(doctor, 'dayRules', 'delete', {}, { entityId: date })]);
+    expect((await sync(staff, [same()])).json.results[0]?.outcome).toBe('applied');
+    expect((await bookingStatus(b.entityId)).status).toBe('pending_approval');
+  });
+
+  it('lets the Doctor fix (→ approved) or anyone cancel a needs_fixing booking, but not approve it', async () => {
+    const pid = await patient();
+    const one = newBooking(staff, pid, nextMonday(17, 30), 60);
+    const two = newBooking(staff, pid, nextMonday(17, 30), 60);
+    await sync(staff, [one, two]);
+    const approve = op(doctor, 'bookings', 'update', { status: 'approved' }, { entityId: one.entityId });
+    expect((await sync(doctor, [approve])).json.results[0]).toMatchObject({ reason: 'invalid_transition' });
+    const fix = op(doctor, 'bookings', 'update', { startAt: nextMonday(9) }, { entityId: one.entityId });
+    expect((await sync(doctor, [fix])).json.results[0]?.outcome).toBe('applied');
+    expect((await bookingStatus(one.entityId)).status).toBe('approved');
+    const cancel = op(
+      staff,
+      'bookings',
+      'update',
+      { status: 'cancelled', cancelReason: 'patient will call back' },
+      { entityId: two.entityId },
+    );
+    expect((await sync(staff, [cancel])).json.results[0]?.outcome).toBe('applied');
+  });
+
+  it('returns the stored needs_fixing result for a re-sent op', async () => {
+    const pid = await patient();
+    const b = newBooking(staff, pid, nextMonday(17, 30), 60);
+    const first = await sync(staff, [b]);
+    expect((await sync(staff, [b])).json.results).toEqual(first.json.results);
+  });
+
+  it('does not let a needs_fixing booking block the slot, and fixes it when moved', async () => {
+    const pid = await patient();
+    const bad = newBooking(staff, pid, nextMonday(17, 30), 60); // ends after closing
+    await sync(staff, [bad]);
+    const other = newBooking(staff, pid, nextMonday(17, 30), 30); // fits, same start
+    expect((await sync(staff, [other])).json.results[0]?.outcome).toBe('applied');
+    const move = op(staff, 'bookings', 'update', { startAt: nextMonday(14) }, { entityId: bad.entityId });
+    expect((await sync(staff, [move])).json.results[0]?.outcome).toBe('applied');
+    expect((await bookingStatus(bad.entityId)).status).toBe('pending_approval');
+  });
+
+  it('keeps a booking inside a Doctor’s block as needs_fixing, but allows lunch', async () => {
     const pid = await patient();
     await sync(doctor, [
       op(doctor, 'blocks', 'create', { startAt: nextMonday(15), endAt: nextMonday(16), reason: 'meeting' }),
@@ -534,7 +807,10 @@ describe('POST /sync: bookings (PRD §6, §7.4, §10)', () => {
       newBooking(staff, pid, nextMonday(15, 30), 30),
       newBooking(staff, pid, nextMonday(12), 60),
     ]);
-    expect(json.results.map((r) => r.outcome === 'rejected' && r.reason)).toEqual(['in_block', false]);
+    expect(json.results.map((r) => (r.outcome === 'needs_fixing' ? r.reason : r.outcome))).toEqual([
+      'in_block',
+      'applied',
+    ]);
   });
 
   it('refuses a booking for an unknown patient', async () => {

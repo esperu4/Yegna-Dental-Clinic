@@ -16,6 +16,12 @@ export type CalendarPref = (typeof CALENDARS)[number];
 export const BOOKING_STATUSES = [
   'pending_approval',
   'clash',
+  /**
+   * Saved, but it breaks a hard clinic-hours rule that changed after it was made (the day was
+   * closed early, a block was added). Kept so nothing promised to a patient disappears; Staff move
+   * it to a valid time. Takes no time in the clash check (decided 2026-11-10, docs/adr/0007).
+   */
+  'needs_fixing',
   'approved',
   'arrived',
   'done',

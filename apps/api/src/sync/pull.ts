@@ -4,7 +4,7 @@
  * Every column sent is listed here explicitly, so a server-only column added later (a chat id,
  * a PIN hash) is never synced by accident (PRD §18).
  */
-import { type SQL, and, gt, gte, inArray, sql } from 'drizzle-orm';
+import { type SQL, and, eq, gt, gte, inArray, sql } from 'drizzle-orm';
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { blocks, bookings, dayRules, holidays, patients, procedures, settings, users } from '@yegna/db';
 import {
@@ -14,6 +14,7 @@ import {
   type SyncChanges,
   type Tombstone,
   WINDOW_PAST_DAYS,
+  rowKey,
 } from '@yegna/shared';
 import { DEFAULT_WEEKLY_HOURS, type WeeklyDefaults, addDays, localDateOf, localToUtc } from '@yegna/time';
 import type { Db } from '../lib/db.ts';
@@ -157,13 +158,17 @@ export async function pull(
   { initial = false, pageSize = PULL_PAGE_SIZE }: { initial?: boolean; pageSize?: number } = {},
 ): Promise<PullResult> {
   const entities = Object.keys(COLUMNS) as PullEntity[];
-  const queries = entities.map((entity) => {
-    const table = TABLES[entity];
-    const conditions: SQL[] = [gt(table.version, cursor)];
+  const conditionsFor = (entity: PullEntity, versionCondition: SQL): SQL[] => {
+    const conditions: SQL[] = [versionCondition];
     // A pull from cursor 0 is always a first fill, whatever the device says.
     if (entity === 'bookings' && (initial || cursor === 0)) {
       conditions.push(gte(bookings.startAt, windowStart(now)));
     }
+    return conditions;
+  };
+  const queries = entities.map((entity) => {
+    const table = TABLES[entity];
+    const conditions = conditionsFor(entity, gt(table.version, cursor));
     return db
       .select(COLUMNS[entity])
       .from(table)
@@ -184,6 +189,33 @@ export async function pull(
   while (end > 0 && end < merged.length && merged[end]!.row.version === merged[end - 1]!.row.version) end++;
   const page = merged.slice(0, end);
 
+  // One batch can give many rows the same version (erasing a patient touches all their bookings).
+  // If a table's fetch was cut off inside the last version on the page, read the rest of that
+  // version too, so the cursor never moves past rows not sent.
+  const last = page.at(-1)?.row.version as number | undefined;
+  if (last !== undefined) {
+    const cut = entities.filter(
+      (_, i) => results[i]!.length > pageSize && results[i]!.at(-1)!.version === last,
+    );
+    if (cut.length) {
+      const rest = (await db.batch(
+        cut.map((entity) =>
+          db
+            .select(COLUMNS[entity])
+            .from(TABLES[entity])
+            .where(and(...conditionsFor(entity, eq(TABLES[entity].version, last)))),
+        ) as never,
+      )) as unknown as Record<string, unknown>[][];
+      const seen = new Set(page.map((p) => `${p.entity}:${rowKey(p.entity, p.row as never)}`));
+      rest.forEach((rows, i) => {
+        for (const row of rows) {
+          const entity = cut[i]!;
+          if (!seen.has(`${entity}:${rowKey(entity, row as never)}`)) page.push({ entity, row });
+        }
+      });
+    }
+  }
+
   const changes: SyncChanges = {};
   for (const { entity, row } of page) {
     ((changes[entity] ??= []) as unknown[]).push(toWire(entity, row));
@@ -191,7 +223,8 @@ export async function pull(
   return {
     changes,
     newCursor: page.length ? (page[page.length - 1]!.row.version as number) : cursor,
-    more: merged.length > page.length,
+    // More if rows were left on this read, or a table was cut off (it may hold later versions).
+    more: merged.length > end || results.some((rows) => rows.length > pageSize),
   };
 }
 

@@ -24,7 +24,7 @@ import {
   statusOnCreate,
   uuidv7,
 } from '@yegna/shared';
-import { DEFAULT_UNSPECIFIED_DURATION_MIN, DEFAULT_WEEKLY_HOURS } from '@yegna/time';
+import { type BookingError, DEFAULT_UNSPECIFIED_DURATION_MIN, DEFAULT_WEEKLY_HOURS } from '@yegna/time';
 import {
   CURRENT_VERSION,
   type Db,
@@ -62,7 +62,7 @@ const MAX_IDS_PER_QUERY = 90;
 type Row = Record<string, unknown>;
 
 type Decision =
-  | { reject: SyncRejectReason }
+  | { reject: SyncRejectReason; redact?: boolean }
   | {
       statements: Statement[];
       action: string;
@@ -101,6 +101,36 @@ const SETTINGS_DEFAULTS = {
 };
 
 const reject = (reason: SyncRejectReason): Decision => ({ reject: reason });
+
+/**
+ * What a deleted patient's row keeps: nothing that identifies them. The phone becomes free for a
+ * new patient (the unique index covers live patients only, migration 0003).
+ */
+const ERASED_PATIENT = { name: '', phoneE164: '', note: null, telegramChatId: null, telegramLinkedAt: null };
+
+/**
+ * Everything else that could identify a deleted patient (ADR 0007): their bookings' notes and cancel
+ * reasons, and the values in the audit history of the patient and those bookings, including refused
+ * bookings made for them. Runs after the delete in the same batch, only if that delete landed (the
+ * row carries this batch's version). Bookings touched get the new version, so devices pull them.
+ */
+function erasePatientTraces(patientId: string, ctx: OpContext) {
+  const landed = sql`EXISTS (SELECT 1 FROM patients
+    WHERE id = ${patientId} AND deleted_at IS NOT NULL AND version = ${CURRENT_VERSION})`;
+  const freeText = sql`json_remove(diff, '$.note', '$.cancelReason', '$.fields.note', '$.fields.cancelReason')`;
+  return [
+    sql`UPDATE audit_log SET diff = NULL
+      WHERE entity = 'patients' AND entity_id = ${patientId} AND ${landed}`,
+    sql`UPDATE audit_log SET diff = ${freeText}
+      WHERE entity = 'bookings' AND diff IS NOT NULL AND ${landed}
+        AND (entity_id IN (SELECT id FROM bookings WHERE patient_id = ${patientId})
+          OR json_extract(diff, '$.fields.patientId') = ${patientId})`,
+    sql`UPDATE bookings
+      SET note = NULL, cancel_reason = NULL, version = ${CURRENT_VERSION},
+          updated_at = ${ctx.now}, updated_by = ${ctx.session.user.id}
+      WHERE patient_id = ${patientId} AND (note IS NOT NULL OR cancel_reason IS NOT NULL) AND ${landed}`,
+  ];
+}
 
 /**
  * Stored results of ops this device already sent, for all of `opIds` in one query, plus how many
@@ -158,7 +188,7 @@ export async function applyOp(ctx: OpContext, op: SyncOp): Promise<OpResult | nu
       op.entity === 'bookings'
         ? await decideBooking(ctx, op, fields, reads, role)
         : decideRow(ctx, op, fields, reads.current);
-    if ('reject' in decision) return storeRejection(ctx, op, decision.reject, fields);
+    if ('reject' in decision) return storeRejection(ctx, op, decision.reject, fields, decision.redact);
     const result = await commit(ctx, op, fields, decision);
     if (result !== 'lost_race') return result;
   }
@@ -171,6 +201,8 @@ interface Reads {
   seenSeq: number;
   patientLive: boolean;
   procedureLive: boolean;
+  /** For a booking update: whether the booking's patient is still live (not erased). */
+  bookingPatientLive: boolean;
   /** Clinic-hours rows for `hoursFor`, read in the same batch when the time was known up front. */
   hours: { startAt: number; durationMin: number; rows: unknown[] } | null;
 }
@@ -183,6 +215,7 @@ async function readContext(db: Db, op: SyncOp, fields: Row): Promise<Reads> {
   ];
   let patientAt = -1;
   let procedureAt = -1;
+  let bookingPatientAt = -1;
   let hoursFor: { startAt: number; durationMin: number } | null = null;
   if (op.entity === 'bookings') {
     if (typeof fields.patientId === 'string') {
@@ -190,6 +223,16 @@ async function readContext(db: Db, op: SyncOp, fields: Row): Promise<Reads> {
     }
     if (typeof fields.procedureId === 'string') {
       procedureAt = queries.push(liveQuery(db, 'procedures', fields.procedureId)) - 1;
+    }
+    if (op.kind === 'update') {
+      bookingPatientAt =
+        queries.push(
+          db
+            .select({ id: patients.id })
+            .from(bookings)
+            .innerJoin(patients, eq(patients.id, bookings.patientId))
+            .where(and(eq(bookings.id, op.entityId), isNull(patients.deletedAt))),
+        ) - 1;
     }
     if (typeof fields.startAt === 'number' && typeof fields.durationMin === 'number') {
       hoursFor = { startAt: fields.startAt, durationMin: fields.durationMin };
@@ -202,6 +245,7 @@ async function readContext(db: Db, op: SyncOp, fields: Row): Promise<Reads> {
     seenSeq: (results[1]![0]?.value as number | undefined) ?? 0,
     patientLive: patientAt >= 0 && results[patientAt]!.length > 0,
     procedureLive: procedureAt >= 0 && results[procedureAt]!.length > 0,
+    bookingPatientLive: bookingPatientAt >= 0 && results[bookingPatientAt]!.length > 0,
     hours: hoursFor ? { ...hoursFor, rows: results.slice(results.length - 4) } : null,
   };
 }
@@ -229,12 +273,21 @@ function decideRow(ctx: OpContext, op: SyncOp, fields: Row, current: Row | undef
 
   if (op.kind === 'delete') {
     if (!current) return reject('not_found');
+    const erase = op.entity === 'patients';
     return {
       statements: [
         db
           .update(table)
-          .set({ ...stamp, deletedAt: (current.deletedAt as number | null) ?? now })
+          .set({
+            ...stamp,
+            deletedAt: (current.deletedAt as number | null) ?? now,
+            // A deleted patient's details are erased, not hidden (decided 2026-11-10, ADR 0007).
+            ...(erase ? ERASED_PATIENT : {}),
+          } as never)
           .where(unchanged),
+        // ...and so are their booking notes and the values kept in their audit history
+        // (who changed what kind of thing, and when, stays).
+        ...(erase ? erasePatientTraces(op.entityId, ctx) : []),
       ],
       action: 'delete',
       diff: staleMark(op, current),
@@ -323,9 +376,10 @@ async function decideBooking(
     if (!reads.patientLive) return reject('patient_not_found');
     const startAt = fields.startAt as number;
     const durationMin = fields.durationMin as number;
+    // Outside the clinic's hours as they are now (they changed after the device decided):
+    // the booking is kept as needs_fixing instead of being refused (decided 2026-11-10, ADR 0007).
     const hours = await hoursErrorAt(startAt, durationMin);
-    if (hours) return reject(hours);
-    const status = statusOnCreate(role);
+    const status = hours ? 'needs_fixing' : statusOnCreate(role);
     const patientId = fields.patientId as string;
     const approved = status === 'approved';
     const deps = bookingDependenciesUnchanged({
@@ -345,16 +399,20 @@ async function decideBooking(
               ${approved ? userId : null}, ${approved ? now : null}, 'app', ${userId},
               ${CURRENT_VERSION}, ${now}, ${userId}
             WHERE ${deps}`,
-        clashStatement(op.entityId, startAt, durationMin),
+        ...(hours ? [] : [clashStatement(op.entityId, startAt, durationMin)]),
       ],
       action: 'create',
       diff: diffOf(undefined, { ...fields, status }),
-      result: clashAwareResult(op.opId, op.entityId),
+      result: hours ? needsFixingResult(op.opId, hours) : clashAwareResult(op.opId, op.entityId),
     };
   }
 
   // Bookings are never deleted (parseOpFields refuses it), so this is an update.
   if (!current || current.deletedAt !== null) return reject('not_found');
+  // The booking's patient was erased (ADR 0007): status changes still work (e.g. cancel), but no
+  // free text is stored on it again, and a refusal keeps no values.
+  const erased = !reads.bookingPatientLive;
+  const refuse = (reason: SyncRejectReason): Decision => ({ reject: reason, redact: erased });
   const set: Row = {};
 
   const to = fields.status as string | undefined;
@@ -367,20 +425,26 @@ async function decideBooking(
       now,
       cancelReason: fields.cancelReason as string | null | undefined,
     });
-    if (error) return reject(error);
+    if (error) return refuse(error);
     set.status = to;
     if (to === 'approved') Object.assign(set, { approvedBy: userId, approvedAt: now });
-    if (to === 'cancelled') set.cancelReason = fields.cancelReason;
+    if (to === 'cancelled') set.cancelReason = erased ? null : fields.cancelReason;
   }
 
   const startAt = (fields.startAt as number | undefined) ?? (current.startAt as number);
   const durationMin = (fields.durationMin as number | undefined) ?? (current.durationMin as number);
-  const moved = startAt !== current.startAt || durationMin !== current.durationMin;
+  // A needs_fixing booking sent with its own time again is re-checked where it is (the hours may
+  // have been restored); otherwise only a real change of time counts as a move.
+  const recheck =
+    current.status === 'needs_fixing' && (fields.startAt !== undefined || fields.durationMin !== undefined);
+  const moved = recheck || startAt !== current.startAt || durationMin !== current.durationMin;
   if (moved) {
     const next = statusAfterReschedule(current.status as never, role);
-    if (!next) return reject('invalid_transition');
+    if (!next) return refuse('invalid_transition');
+    // A move into a time outside the hours is refused: the booking keeps its confirmed time
+    // (decided 2026-11-10, ADR 0007). Only new bookings are kept as needs_fixing.
     const hours = await hoursErrorAt(startAt, durationMin);
-    if (hours) return reject(hours);
+    if (hours) return refuse(hours);
     const stillApproved = next === 'approved' && current.status === 'approved';
     Object.assign(set, {
       startAt,
@@ -392,7 +456,7 @@ async function decideBooking(
     });
   }
   if (procedureId !== undefined) set.procedureId = procedureId;
-  if (fields.note !== undefined) set.note = fields.note;
+  if (fields.note !== undefined) set.note = erased ? null : fields.note;
 
   return {
     statements: [
@@ -403,6 +467,11 @@ async function decideBooking(
           and(
             eq(bookings.id, op.entityId),
             eq(bookings.version, current.version as number),
+            // Decided with a live patient: lands only if the patient is still live, so text can't
+            // be written after a delete that runs meanwhile (the op is then decided again).
+            erased
+              ? undefined
+              : sql`EXISTS (SELECT 1 FROM patients WHERE id = ${bookings.patientId} AND deleted_at IS NULL)`,
             moved || procedureId
               ? bookingDependenciesUnchanged({ seenSeq: reads.seenSeq, startAt, durationMin, procedureId })
               : undefined,
@@ -414,6 +483,11 @@ async function decideBooking(
     diff: { ...diffOf(current, set), ...staleMark(op, current) },
     ...(moved ? { result: clashAwareResult(op.opId, op.entityId) } : {}),
   };
+}
+
+/** The stored result for a booking kept as needs_fixing. */
+function needsFixingResult(opId: string, reason: BookingError) {
+  return sql`json_object('opId', ${opId}, 'outcome', 'needs_fixing', 'version', ${CURRENT_VERSION}, 'reason', ${reason})`;
 }
 
 /** `{ field: [old, new] }` for the fields this op changes; `{ field: new }` on create. */
@@ -496,11 +570,28 @@ async function commit(
  * Stores a refusal, so a re-sent op gets the same answer (PRD §7.4 step 1), and keeps the refused
  * values in `audit_log` so nothing the user entered is lost without a trace (PRD §7.4 step 3).
  */
+/**
+ * What a refusal keeps in the audit log. For patients only the field names: the values could be a
+ * real person's details for a patient that is (or later is) erased, and a refused row is not tied
+ * to that patient's id (ADR 0007). Other entities keep the values, so nothing entered is lost.
+ */
+function refusedDiff(
+  op: SyncOp,
+  reason: SyncRejectReason,
+  fields: Row | null,
+  redact = false,
+): Record<string, unknown> | null {
+  if (!fields) return null;
+  const namesOnly = redact || op.entity === 'patients' || reason === 'patient_not_found';
+  return namesOnly ? { kind: op.kind, fieldNames: Object.keys(fields) } : { kind: op.kind, fields };
+}
+
 async function storeRejection(
   ctx: OpContext,
   op: SyncOp,
   reason: SyncRejectReason,
   fields: Row | null,
+  redact = false,
 ): Promise<OpResult> {
   const { db, session, now } = ctx;
   const result: OpResult = { opId: op.opId, outcome: 'rejected', reason };
@@ -509,7 +600,7 @@ async function storeRejection(
       sql`INSERT INTO sync_ops (op_id, device_id, result, applied_at)
           VALUES (${op.opId}, ${session.deviceId}, ${JSON.stringify(result)}, ${now})`,
       sql`INSERT INTO audit_log (id, entity, entity_id, user_id, device_id, action, diff, at)
-          VALUES (${auditValues(ctx, op, `rejected:${reason}`, fields ? { kind: op.kind, fields } : null)})`,
+          VALUES (${auditValues(ctx, op, `rejected:${reason}`, refusedDiff(op, reason, fields, redact))})`,
     ]);
   } catch (err) {
     if (!isUniqueViolation(err)) throw err;

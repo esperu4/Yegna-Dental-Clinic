@@ -53,7 +53,12 @@ export function applyLocally(current: object | undefined, op: SyncOp, role: Role
 
   const next: AnyRow = { ...row, ...op.fields, ...stamp, deletedAt: null };
   if (op.entity === 'bookings') {
+    // Same rule as the server: a needs_fixing booking sent with its own time is re-checked in place.
+    const recheck =
+      row.status === 'needs_fixing' &&
+      (op.fields.startAt !== undefined || op.fields.durationMin !== undefined);
     const moved =
+      recheck ||
       (op.fields.startAt !== undefined && op.fields.startAt !== row.startAt) ||
       (op.fields.durationMin !== undefined && op.fields.durationMin !== row.durationMin);
     if (moved) {

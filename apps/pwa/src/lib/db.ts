@@ -26,9 +26,10 @@ export type LocalRow<E extends PullEntity> = RowOf[E] & { provisional?: boolean 
  */
 export interface Notice {
   opId: string;
-  kind: 'rejected' | 'clash';
+  kind: 'rejected' | 'clash' | 'needs_fixing';
   entity: WriteEntity;
   entityId: string;
+  /** Why it was refused, or which clinic-hours rule a needs-fixing booking breaks. */
   reason?: SyncRejectReason;
   winner?: string;
   fields: Record<string, unknown>;

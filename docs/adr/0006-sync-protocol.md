@@ -79,7 +79,8 @@ same moment, exactly one wins (the lower `version`). The overlap query range-sca
 
 The API enforces them and the PWA mirrors them. This pulls part of M3's first criterion forward
 because M1's card actions need it. Hard clinic-hours limits (closed day, before open, after close,
-block) are checked on the server too, and such an op is refused.
+block) are checked on the server too. A booking that breaks one is stored as `needs_fixing`, not
+refused (ADR 0007).
 
 ## Refusals are never silent
 
@@ -139,7 +140,4 @@ are tombstones (`deleted_at`). Bookings are never deleted; they are cancelled wi
 ## Not done yet
 
 - `sync_ops` grows by one row per op; the hourly cron (M3) will drop rows older than 30 days.
-- Two open questions for the clinic are listed in the M1 notes: whether a deleted patient's
-  name and phone should also be erased from D1 (today they stay in the row and in `audit_log`),
-  and whether a booking refused by a clinic-hours change should be kept as "needs fixing" instead
-  of being refused (today it is refused, recorded, and shown on the device with its details).
+- Erasing deleted patients and the `needs_fixing` status were decided later: see ADR 0007.

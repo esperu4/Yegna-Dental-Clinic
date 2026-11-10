@@ -98,7 +98,7 @@ test('Doctor sets up the clinic, adds Staff; Staff enrols; Doctor revokes the ph
 
   // The Staff phone is wiped at its next request
   // (Hana's phone is in Amharic: "Gregorian" button, then the "signed out by the Doctor" notice.)
-  await staff.getByRole('button', { name: 'ግሪጎሪያን' }).click();
+  await staff.getByRole('button', { name: 'ግሪጎሪያን', exact: true }).click();
   await expect(staff.getByText('ሐኪሟ ይህን ስልክ አስወጥተዋል። መረጃው ተሰርዟል።')).toBeVisible();
   await staff.reload();
   await expect(staff.getByRole('button', { name: 'በዚህ ስልክ ይግቡ' })).toBeVisible();

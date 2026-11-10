@@ -6,7 +6,7 @@
  * offline. Language and calendar belong to the user account and are saved online (`/me`).
  */
 import { useEffect, useState } from 'preact/hooks';
-import type { CalendarPref, Locale, ProcedureRow, SessionUser } from '@yegna/shared/client';
+import type { CalendarPref, Locale, ProcedureRow } from '@yegna/shared/client';
 import { CLINIC_WEEK, type WeekdayHours, type WeeklyDefaults, weekdayName } from '@yegna/time';
 import { calendarPref, locale, t } from '../i18n/index.ts';
 import { db } from '../lib/db.ts';
@@ -22,7 +22,7 @@ import {
   procedureProblems,
   sortProcedures,
 } from '../lib/procedures.ts';
-import { session } from '../lib/session.ts';
+import { preferences } from '../lib/preferences.ts';
 import { sync } from '../lib/sync.ts';
 import {
   STANDARD_DAY,
@@ -36,11 +36,9 @@ import { Field, useAction } from './ui.tsx';
 export function PreferencesPicker() {
   const { busy, error, run } = useAction();
 
+  // Applies at once and works offline (lib/preferences.ts).
   function save(patch: { locale?: Locale; calendar?: CalendarPref }) {
-    void run(async () => {
-      const res = await session.authed<{ user: SessionUser }>('/me', { method: 'PATCH', body: patch });
-      await session.updateUser(res.user);
-    });
+    void run(() => preferences.set(patch));
   }
 
   return (

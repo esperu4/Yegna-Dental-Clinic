@@ -23,6 +23,7 @@ const STATUS_KEYS: Record<BookingRow['status'], MessageKey> = {
   no_show: 'status.no_show',
   cancelled: 'status.cancelled',
   clash: 'status.clash',
+  needs_fixing: 'status.needs_fixing',
 };
 
 export function StatusChip(props: { booking: BookingRow & { provisional?: boolean } }) {
@@ -109,6 +110,7 @@ export function BookingDetails(props: {
         <StatusChip booking={booking} />
         {booking.note ? <p class="muted">{booking.note}</p> : null}
         {booking.status === 'clash' ? <p class="banner warn">{t('notice.clash.move')}</p> : null}
+        {booking.status === 'needs_fixing' ? <p class="banner warn">{t('notice.needsFixing.move')}</p> : null}
         <div class="actions">
           {cardActions(booking, role, Date.now())
             // Booking the next visit needs the patient; the other actions work without it.
@@ -185,11 +187,12 @@ export function NoticeList(props: {
     <ul class="notices">
       {rows.map(({ notice, booking, patient }) => (
         <li class="banner warn">
-          {notice.kind === 'clash' && booking ? (
+          {notice.kind !== 'rejected' && booking ? (
             <button type="button" class="link" onClick={() => props.onMove(booking, patient)}>
-              {t('notice.clash', {
+              {t(notice.kind === 'clash' ? 'notice.clash' : 'notice.needsFixing', {
                 name: patient?.name ?? '…',
                 when: `${formatDate(utcToLocal(booking.startAt).date)} ${formatTime(utcToLocal(booking.startAt).minutes)}`,
+                reason: t(REASON_KEYS[notice.reason!] ?? 'notice.reason.other'),
               })}
             </button>
           ) : (

@@ -34,6 +34,7 @@ describe('checkStatusChange', () => {
     expect(ok('pending_approval', 'cancelled')).toBeNull();
     expect(ok('approved', 'cancelled')).toBeNull();
     expect(ok('clash', 'cancelled')).toBeNull();
+    expect(ok('needs_fixing', 'cancelled')).toBeNull();
   });
 
   it.each<[BookingStatus, BookingStatus]>([
@@ -49,6 +50,8 @@ describe('checkStatusChange', () => {
     // A clash is fixed by moving the booking (statusAfterReschedule), not by a status change.
     ['clash', 'pending_approval'],
     ['clash', 'approved'],
+    ['needs_fixing', 'approved'],
+    ['needs_fixing', 'arrived'],
   ])('refuses %s → %s', (from, to) => {
     expect(ok(from, to, 'doctor')).toBe('invalid_transition');
   });
@@ -86,6 +89,11 @@ describe('statusAfterReschedule (PRD §10, §21 #2)', () => {
   it('keeps an approved booking moved by the Doctor approved', () => {
     expect(statusAfterReschedule('approved', 'doctor')).toBe('approved');
   });
+  it('fixes a booking that needs fixing the same way as a clash', () => {
+    expect(statusAfterReschedule('needs_fixing', 'staff')).toBe('pending_approval');
+    expect(statusAfterReschedule('needs_fixing', 'doctor')).toBe('approved');
+  });
+
   it('fixes a clash: Staff → pending approval, Doctor → approved', () => {
     expect(statusAfterReschedule('clash', 'staff')).toBe('pending_approval');
     expect(statusAfterReschedule('clash', 'doctor')).toBe('approved');

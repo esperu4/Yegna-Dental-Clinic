@@ -175,8 +175,10 @@ export function createSync(deps: { db?: YegnaDb; session?: Session; now?: () => 
           kind: result.outcome,
           entity: op.entity,
           entityId: op.entityId,
-          ...(result.outcome === 'rejected' ? { reason: result.reason } : { winner: result.winner }),
-          fields: op.fields,
+          ...(result.outcome === 'clash' ? { winner: result.winner } : { reason: result.reason }),
+          // Patient details are not kept on a notice (the patient may be, or be about to be,
+          // erased: ADR 0007); booking fields are, so a refused booking can be made again.
+          fields: op.entity === 'patients' ? {} : op.fields,
           at: now(),
         });
         if (result.outcome !== 'rejected') continue;
@@ -201,8 +203,20 @@ export function createSync(deps: { db?: YegnaDb; session?: Session; now?: () => 
           // are dropped, so its details don't linger on the device.
           if (serverRow.deletedAt !== null) {
             await table.put({ ...serverRow, provisional: false } as never);
-            await store.notices.filter((n) => n.entity === entity && n.entityId === key).delete();
+            await store.notices
+              .filter(
+                (n) =>
+                  (n.entity === entity && n.entityId === key) ||
+                  // A deleted patient's booking notices may hold their booking's note (ADR 0007).
+                  (entity === 'patients' && n.fields.patientId === key),
+              )
+              .delete();
             continue;
+          }
+          // A clash or needs-fixing notice goes away once its booking is fixed.
+          const status = (serverRow as { status?: string }).status;
+          if (entity === 'bookings' && status !== 'clash' && status !== 'needs_fixing') {
+            await store.notices.filter((n) => n.entityId === key && n.kind !== 'rejected').delete();
           }
           // Replay ops still waiting for the server, so a newer local edit is not overwritten.
           const row = pendingFor(entity, key).reduce<AnyRow>((r, e) => applyLocally(r, e.op, role), {

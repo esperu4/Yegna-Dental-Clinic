@@ -73,6 +73,10 @@ class FakeServer {
 
   apply(op: SyncOp): OpResult {
     if (op.fields.name === 'REJECT') return { opId: op.opId, outcome: 'rejected', reason: 'invalid' };
+    if (op.fields.name === 'NEEDS_FIX') {
+      this.apply({ ...op, fields: { ...op.fields, name: 'kept' } });
+      return { opId: op.opId, outcome: 'needs_fixing', version: this.version, reason: 'after_close' };
+    }
     if (op.fields.name === 'CLASH') {
       this.apply({ ...op, fields: { ...op.fields, name: 'clashed' } });
       return { opId: op.opId, outcome: 'clash', version: this.version, winner: 'w1' };
@@ -196,7 +200,7 @@ describe('device sync', () => {
       entity: 'patients',
       entityId: op.entityId,
       reason: 'invalid',
-      fields: op.fields,
+      fields: {}, // patient details are never kept on a notice (ADR 0007)
       at: expect.any(Number),
     };
     expect(sync.notices.value).toEqual([notice]);
@@ -262,6 +266,17 @@ describe('device sync: robustness', () => {
     ]);
   });
 
+  it('records a booking kept as needs fixing as a notice with its reason (ADR 0007)', async () => {
+    const { db, sync } = await setup();
+    const op = await sync.write('patients', 'create', patient('NEEDS_FIX'));
+    await sync.syncNow();
+    expect(sync.notices.value).toEqual([
+      expect.objectContaining({ opId: op.opId, kind: 'needs_fixing', reason: 'after_close' }),
+    ]);
+    // Kept, not rolled back.
+    expect(await db.patients.get(op.entityId)).toMatchObject({ provisional: false });
+  });
+
   it('never replaces a row with an older server version', async () => {
     const { db, sync } = await setup();
     const op = await sync.write('patients', 'create', patient('A'));
@@ -300,6 +315,31 @@ describe('device sync: robustness', () => {
     });
     await sync.syncNow();
     expect(await db.patients.get(op.entityId)).toEqual({ ...tombstone, provisional: false });
+  });
+
+  it('drops booking notices about a patient when the patient is deleted', async () => {
+    const { server, db, sync } = await setup();
+    const p = await sync.write('patients', 'create', patient('Soon Gone'));
+    await sync.syncNow();
+    await db.notices.put({
+      opId: 'n1',
+      kind: 'rejected',
+      entity: 'bookings',
+      entityId: 'b1',
+      reason: 'patient_not_found',
+      fields: { patientId: p.entityId, note: 'private' },
+      at: Date.now(),
+    });
+    server.rows.set(p.entityId, {
+      entity: 'patients',
+      id: p.entityId,
+      version: ++server.version,
+      updatedAt: 1,
+      updatedBy: null,
+      deletedAt: 1,
+    });
+    await sync.syncNow();
+    expect(await db.notices.count()).toBe(0);
   });
 
   it('does not replay a pending edit onto a tombstone, and refuses new edits to a deleted row', async () => {
@@ -423,6 +463,18 @@ describe('applyLocally', () => {
     expect(applyLocally(approved, op({ kind: 'update', fields: { startAt: 2000 } }), 'staff')).toMatchObject({
       status: 'pending_approval',
       startAt: 2000,
+    });
+  });
+
+  it('re-checks a needs_fixing booking sent with its own time (same rule as the server)', () => {
+    const fix = {
+      ...applyLocally(undefined, op({}), 'staff'),
+      status: 'needs_fixing',
+      version: 2,
+      provisional: false,
+    };
+    expect(applyLocally(fix, op({ kind: 'update', fields: { startAt: 1000 } }), 'staff')).toMatchObject({
+      status: 'pending_approval',
     });
   });
 

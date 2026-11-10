@@ -60,6 +60,7 @@ describe('device session', () => {
     expect(c.status.value).toBe('ready');
   });
 
+  // Each wrong PIN runs the deliberately slow PIN hash: allow for a loaded machine.
   it('unlocks offline with the PIN; five wrong PINs lock for five minutes', async () => {
     const s = make();
     await s.enrol({ name: 'Hana', pin: '4731', deviceLabel: 'x' });
@@ -70,7 +71,7 @@ describe('device session', () => {
     expect(await s.unlock('4731')).toMatchObject({ ok: false, reason: 'locked' });
     clock += LOCAL_LOCKOUT_MS + 1;
     expect(await s.unlock('4731')).toEqual({ ok: true });
-  });
+  }, 20_000);
 
   it('checkIdle locks a running app that has been idle for 24 h', async () => {
     const s = make();

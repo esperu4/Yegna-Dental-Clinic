@@ -131,6 +131,10 @@ export const en = {
   'wizard.notifications.denied': 'Notifications are blocked. You can allow them in the browser settings.',
   'wizard.notifications.unsupported': 'This browser can’t show notifications.',
   'common.close': 'Close',
+  'prefs.switchLanguage': 'Switch language (Amharic / English)',
+  'prefs.switchCalendar': 'Switch calendar (Ethiopian / Gregorian)',
+  'prefs.calendar.et': 'ET',
+  'prefs.calendar.gc': 'GC',
 
   'day.title': 'Day',
   'day.view': 'View',
@@ -145,11 +149,13 @@ export const en = {
   'day.closed': 'The clinic is closed this day.',
   'day.timeline': 'Bookings',
   'day.blocked': 'Blocked',
+  'day.attention': 'Needs attention',
 
   'week.title': 'Week',
   'week.previous': 'Previous week',
   'week.next': 'Next week',
   'week.booked': '{n} booked · {free}% free',
+  'week.attention': '{n} need attention',
 
   'status.pending_approval': 'Waiting for approval',
   'status.approved': 'Approved',
@@ -158,6 +164,7 @@ export const en = {
   'status.no_show': 'No-show',
   'status.cancelled': 'Cancelled',
   'status.clash': 'Clash',
+  'status.needs_fixing': 'Needs fixing',
   'status.provisional': 'Not sent yet',
 
   'action.approve': 'Approve',
@@ -200,6 +207,9 @@ export const en = {
 
   'notice.clash': 'Clash: {name} at {when}. Tap to move.',
   'notice.clash.move': 'Another booking took this time first. Move this booking to a free time.',
+  'notice.needsFixing': 'Needs fixing: {name} at {when}. {reason} Tap to move.',
+  'notice.needsFixing.move':
+    'The clinic’s hours changed and this time is no longer possible. Move this booking to a free time.',
   'notice.rejected': 'A change was not saved: {reason}',
   'notice.dismiss': 'OK',
   'notice.reason.forbidden': 'only the Doctor can do this.',
@@ -364,6 +374,10 @@ export const am: Record<MessageKey, string> = {
   'wizard.notifications.denied': 'ማሳወቂያዎች ታግደዋል። በአሳሹ ማስተካከያ ውስጥ መፍቀድ ይችላሉ።',
   'wizard.notifications.unsupported': 'ይህ አሳሽ ማሳወቂያ ማሳየት አይችልም።',
   'common.close': 'ዝጋ',
+  'prefs.switchLanguage': 'ቋንቋ ቀይር (አማርኛ / እንግሊዝኛ)',
+  'prefs.switchCalendar': 'የቀን አቆጣጠር ቀይር (ኢትዮጵያ / ግሪጎሪያን)',
+  'prefs.calendar.et': 'ዓ.ም',
+  'prefs.calendar.gc': 'ፈ.አ',
 
   'day.title': 'ቀን',
   'day.view': 'ዕይታ',
@@ -378,11 +392,13 @@ export const am: Record<MessageKey, string> = {
   'day.closed': 'ክሊኒኩ በዚህ ቀን ዝግ ነው።',
   'day.timeline': 'ቀጠሮዎች',
   'day.blocked': 'የተያዘ ጊዜ',
+  'day.attention': 'ትኩረት የሚያስፈልጋቸው',
 
   'week.title': 'ሳምንት',
   'week.previous': 'ያለፈው ሳምንት',
   'week.next': 'የሚቀጥለው ሳምንት',
   'week.booked': '{n} ቀጠሮ · {free}% ክፍት',
+  'week.attention': '{n} ትኩረት ያስፈልጋቸዋል',
 
   'status.pending_approval': 'ማጽደቅ በመጠበቅ ላይ',
   'status.approved': 'ጸድቋል',
@@ -391,6 +407,7 @@ export const am: Record<MessageKey, string> = {
   'status.no_show': 'አልመጡም',
   'status.cancelled': 'ተሰርዟል',
   'status.clash': 'ግጭት',
+  'status.needs_fixing': 'መስተካከል ያለበት',
   'status.provisional': 'ገና አልተላከም',
 
   'action.approve': 'አጽድቅ',
@@ -433,6 +450,8 @@ export const am: Record<MessageKey, string> = {
 
   'notice.clash': 'ግጭት፦ {name} በ{when}። ለመቀየር ይንኩ።',
   'notice.clash.move': 'ሌላ ቀጠሮ ይህን ሰዓት ቀድሞ ይዞታል። ይህን ቀጠሮ ወደ ክፍት ጊዜ ይቀይሩ።',
+  'notice.needsFixing': 'መስተካከል ያለበት፦ {name} በ{when}። {reason} ለመቀየር ይንኩ።',
+  'notice.needsFixing.move': 'የክሊኒኩ የሥራ ሰዓት ተቀይሯል፤ ይህ ሰዓት አሁን አይቻልም። ይህን ቀጠሮ ወደ ክፍት ጊዜ ይቀይሩ።',
   'notice.rejected': 'አንድ ለውጥ አልተቀመጠም፦ {reason}',
   'notice.dismiss': 'እሺ',
   'notice.reason.forbidden': 'ይህን ማድረግ የሚችሉት ሐኪሙ ብቻ ናቸው።',

@@ -22,6 +22,20 @@
       "when": 1794301469868,
       "tag": "0002_sync_ops_device_index",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794307527130,
+      "tag": "0003_erase_deleted_patients",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794308874079,
+      "tag": "0004_erase_deleted_patient_traces",
+      "breakpoints": true
     }
   ]
 }

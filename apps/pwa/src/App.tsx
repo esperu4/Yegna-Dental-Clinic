@@ -1,5 +1,6 @@
 import { useEffect } from 'preact/hooks';
 import { locale, t } from './i18n/index.ts';
+import { preferences } from './lib/preferences.ts';
 import { route } from './lib/router.ts';
 import { session } from './lib/session.ts';
 import { sync } from './lib/sync.ts';
@@ -29,6 +30,14 @@ export function App() {
   // Sync while the app is open and unlocked (PRD §7.3; the service worker takes over in M2).
   const status = session.status.value;
   useEffect(() => (status === 'ready' ? sync.startAuto() : undefined), [status]);
+  // Send a language/calendar change made offline, now and whenever the device is back online.
+  useEffect(() => {
+    if (status !== 'ready') return;
+    const flush = () => void preferences.flush();
+    flush();
+    window.addEventListener('online', flush);
+    return () => window.removeEventListener('online', flush);
+  }, [status]);
 
   useEffect(() => {
     document.documentElement.lang = locale.value;

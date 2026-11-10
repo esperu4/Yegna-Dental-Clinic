@@ -105,6 +105,21 @@ export function checkDraft(
   return { errors, warnings, clashWith };
 }
 
+/**
+ * Bookings that need someone's attention this day: clashes, needs-fixing bookings, and active
+ * bookings that fall outside the day's hours (the day was closed or shortened after they were
+ * made). Listed above the timeline, so none is hidden by a "Closed" banner or drawn off the chart.
+ */
+export function needsAttention(plan: DayPlan): BookingRow[] {
+  return plan.bookings.filter((b) => {
+    if (b.status === 'clash' || b.status === 'needs_fixing') return true;
+    if (!isActiveStatus(b.status)) return false;
+    if (plan.day.closed) return true;
+    const start = utcToLocal(b.startAt).date === plan.date ? startMinOf(b) : -1;
+    return start < plan.day.openAt || start + b.durationMin > plan.day.closeAt;
+  });
+}
+
 /** The first slot from `fromMin` where a booking of `durationMin` fits with no error or clash. */
 export function nextFreeSlot(plan: DayPlan, durationMin: number, fromMin = 0): number | null {
   return (

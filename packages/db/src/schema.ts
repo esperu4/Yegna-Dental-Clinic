@@ -114,7 +114,11 @@ export const patients = sqliteTable(
     ...syncable,
   },
   (t) => [
-    uniqueIndex('patients_phone_uq').on(t.phoneE164),
+    // Unique among live patients only: a deleted patient is erased and its number can be reused
+    // (docs/adr/0007-erase-deleted-patients-and-needs-fixing.md).
+    uniqueIndex('patients_phone_uq')
+      .on(t.phoneE164)
+      .where(sql`${t.deletedAt} IS NULL`),
     index('patients_name_idx').on(t.name),
     index('patients_version_idx').on(t.version),
     check('patients_note_len', sql`${t.note} IS NULL OR length(${t.note}) <= 280`),

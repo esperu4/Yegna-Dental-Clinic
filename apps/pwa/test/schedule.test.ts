@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BlockRow, BookingRow, PatientRow } from '@yegna/shared/client';
 import { DEFAULT_WEEKLY_HOURS, localToUtc } from '@yegna/time';
 import { phoneDigits, searchByName, searchByPhone } from '../src/lib/patientSearch.ts';
-import { cardActions, checkDraft, nextFreeSlot, planDay } from '../src/lib/schedule.ts';
+import { cardActions, checkDraft, needsAttention, nextFreeSlot, planDay } from '../src/lib/schedule.ts';
 
 const MONDAY = '2026-11-16';
 const SUNDAY = '2026-11-15';
@@ -119,6 +119,29 @@ describe('checkDraft', () => {
   it('ignores done and no-show bookings in the clash warning', () => {
     const p = plan({ bookings: [booking('b1', at(MONDAY, 10), { status: 'done' })] });
     expect(checkDraft(p, { startMin: 600, durationMin: 60 }).clashWith).toBeNull();
+  });
+});
+
+describe('needsAttention', () => {
+  it('lists clashes, needs-fixing bookings and active bookings outside the day’s hours', () => {
+    const p = plan({
+      bookings: [
+        booking('ok', at(MONDAY, 10)),
+        booking('clash', at(MONDAY, 10), { status: 'clash' }),
+        booking('fix', at(MONDAY, 11), { status: 'needs_fixing' }),
+        booking('late', at(MONDAY, 17, 30)), // ends 18:30, after closing
+        booking('doneLate', at(MONDAY, 17, 30), { status: 'done' }),
+      ],
+    });
+    expect(needsAttention(p).map((b) => b.id)).toEqual(['clash', 'fix', 'late']);
+  });
+
+  it('lists every active booking on a closed day, so none is hidden by the banner', () => {
+    const p = plan({
+      date: SUNDAY,
+      bookings: [booking('b', at(SUNDAY, 10)), booking('c', at(SUNDAY, 11), { status: 'cancelled' })],
+    });
+    expect(needsAttention(p).map((b) => b.id)).toEqual(['b']);
   });
 });
 

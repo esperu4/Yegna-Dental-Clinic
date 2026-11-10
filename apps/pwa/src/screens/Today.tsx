@@ -12,6 +12,7 @@ import { useState } from 'preact/hooks';
 import type { BookingRow, PatientRow, ProcedureRow } from '@yegna/shared/client';
 import { GRID_STEP_MIN, addDays, localDateOf, weekdayName, weekdayOf } from '@yegna/time';
 import { BookingSheet, type SheetMode } from '../components/BookingSheet.tsx';
+import { QuickPrefs } from '../components/QuickPrefs.tsx';
 import { BlockList, BlockSheet, DayRuleSheet } from '../components/doctorDay.tsx';
 import { BookingDetails, NoticeList, StatusChip } from '../components/bookingCards.tsx';
 import { locale, t } from '../i18n/index.ts';
@@ -19,7 +20,7 @@ import { useDayPlan, usePatients, useProcedures, useWeekPlans } from '../lib/day
 import { formatDate, formatTime } from '../lib/format.ts';
 import { go } from '../lib/router.ts';
 import { session } from '../lib/session.ts';
-import { type DayPlan, dayRange, startMinOf } from '../lib/schedule.ts';
+import { type DayPlan, dayRange, needsAttention, startMinOf } from '../lib/schedule.ts';
 
 /** Timeline scale: 15 minutes = 24 px, so a 15-minute booking still has a 48 px-ish tap target with its padding. */
 const PX_PER_MIN = 1.6;
@@ -43,6 +44,7 @@ export function Home() {
             {t('day.weekView')}
           </button>
         </div>
+        <QuickPrefs />
         <button type="button" class="icon" onClick={() => go('settings')} aria-label={t('nav.settings')}>
           ⚙
         </button>
@@ -104,6 +106,8 @@ function DayView(props: {
   const procedures = useProcedures();
   if (!plan || !patients || !procedures) return <p class="muted">{t('common.loading')}</p>;
   const waiting = plan.bookings.filter((b) => b.status === 'arrived');
+  const attention = needsAttention(plan);
+  const attentionIds = new Set(attention.map((b) => b.id));
   const isDoctor = session.current.value?.user.role === 'doctor';
 
   return (
@@ -176,6 +180,19 @@ function DayView(props: {
       ) : null}
       {tool === 'block' ? <BlockSheet date={plan.date} day={plan.day} onClose={() => setTool(null)} /> : null}
 
+      {attention.length ? (
+        <section class="attention" aria-label={t('day.attention')}>
+          <h2>{t('day.attention')}</h2>
+          {attention.map((b) => (
+            <button type="button" class="attention-row" onClick={() => props.onOpen(b.id)}>
+              <span class="booking-name">{patients.get(b.patientId)?.name ?? '…'}</span>
+              <span class="small">{formatTime(startMinOf(b))}</span>
+              <StatusChip booking={b} />
+            </button>
+          ))}
+        </section>
+      ) : null}
+
       {plan.day.closed ? (
         <p class="banner warn">
           {plan.holiday
@@ -189,6 +206,7 @@ function DayView(props: {
           codes={procedures}
           onSlot={props.onSlot}
           onOpen={props.onOpen}
+          hidden={attentionIds}
         />
       )}
     </>
@@ -201,6 +219,8 @@ function Timeline(props: {
   codes: Map<string, ProcedureRow>;
   onSlot: (startMin: number) => void;
   onOpen: (id: string) => void;
+  /** Bookings already listed under "Needs attention" that would fall off the chart. */
+  hidden: ReadonlySet<string>;
 }) {
   const { plan } = props;
   if (plan.day.closed) return null;
@@ -248,6 +268,7 @@ function Timeline(props: {
       })}
       {plan.bookings.map((b) => {
         const start = startMinOf(b);
+        if (props.hidden.has(b.id) && (start < openAt || start + b.durationMin > closeAt)) return null;
         const patient = props.patients.get(b.patientId);
         const procedure = b.procedureId ? props.codes.get(b.procedureId) : undefined;
         const col = columns.get(b.id) ?? 0;
@@ -339,6 +360,11 @@ function WeekView(props: { date: string; onDay: (date: string) => void }) {
                   <strong>{weekdayName(weekdayOf(plan.date), locale.value)}</strong>
                   <span class="muted small">{formatDate(plan.date)}</span>
                 </span>
+                {needsAttention(plan).length ? (
+                  <span class="attention-count">
+                    {t('week.attention', { n: needsAttention(plan).length })}
+                  </span>
+                ) : null}
                 {plan.day.closed ? (
                   <span class="muted">{t('day.closed')}</span>
                 ) : (
@@ -366,6 +392,9 @@ function fullness(plan: DayPlan): number {
   const lunch =
     plan.day.lunchStart !== null && plan.day.lunchEnd !== null ? plan.day.lunchEnd - plan.day.lunchStart : 0;
   const open = plan.day.closeAt - plan.day.openAt - lunch;
-  const used = plan.bookings.filter((b) => b.status !== 'no_show').reduce((sum, b) => sum + b.durationMin, 0);
+  // Clash and needs-fixing bookings take no time until they are fixed.
+  const used = plan.bookings
+    .filter((b) => b.status !== 'no_show' && b.status !== 'clash' && b.status !== 'needs_fixing')
+    .reduce((sum, b) => sum + b.durationMin, 0);
   return open > 0 ? Math.min(1, used / open) : 1;
 }
