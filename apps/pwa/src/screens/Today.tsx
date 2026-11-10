@@ -123,7 +123,7 @@ function DayView(props: {
         >
           ‹
         </button>
-        <span>
+        <span data-date={props.date}>
           {weekdayName(weekdayOf(props.date), locale.value)} · {formatDate(props.date)}
         </span>
         <button
@@ -196,7 +196,7 @@ function DayView(props: {
       ) : null}
 
       {plan.day.closed ? (
-        <p class="banner warn">
+        <p class="banner warn" data-plan-date={plan.date}>
           {plan.holiday
             ? t('day.holiday', { name: locale.value === 'am' ? plan.holiday.nameAm : plan.holiday.nameEn })
             : t('day.closed')}
@@ -241,6 +241,7 @@ function Timeline(props: {
   return (
     <div
       class="timeline"
+      data-plan-date={plan.date}
       style={{ height: `${y(closeAt)}px` }}
       onClick={slotAt}
       aria-label={t('day.timeline')}

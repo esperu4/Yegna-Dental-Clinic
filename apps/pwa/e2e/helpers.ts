@@ -62,16 +62,17 @@ export async function staffPhone(browser: Browser, doctor: Page, name: string, p
  */
 export async function openDay(page: Page, nth: number) {
   let found = 0;
-  const shownDay = page.locator('.day-picker > span').first();
-  const closed = page.getByText('The clinic is closed this day.');
+  const shownDay = page.locator('.day-picker > span[data-date]').first();
   for (let i = 0; i < 21; i++) {
-    const before = await shownDay.textContent();
+    const before = await shownDay.getAttribute('data-date');
     await page.getByRole('button', { name: 'Next day' }).click();
-    // Wait until the next day is drawn (open: its timeline; closed: the notice) before deciding,
-    // or a closed day still loading would count as open.
-    await expect(shownDay).not.toHaveText(before ?? '');
-    await expect(closed.or(page.locator('.timeline'))).toBeVisible();
-    if (await closed.isVisible()) continue;
+    // Decide only once the new day itself is drawn (its timeline or its closed notice): the
+    // previous day's timeline stays on screen for a moment while the new day loads.
+    await expect(shownDay).not.toHaveAttribute('data-date', before ?? '');
+    const date = await shownDay.getAttribute('data-date');
+    const drawn = page.locator(`[data-plan-date="${date}"]`);
+    await expect(drawn).toBeVisible();
+    if (await drawn.evaluate((el) => el.classList.contains('banner'))) continue;
     if (++found === nth) return;
   }
   throw new Error(`no ${nth}th open day within three weeks`);
