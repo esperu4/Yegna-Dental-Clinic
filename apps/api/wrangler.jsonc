@@ -24,6 +24,8 @@
       "vars": {
         "ENVIRONMENT": "staging",
         "PWA_ORIGIN": "https://yegna-pwa-staging.yegna-api.workers.dev",
+        // The staging test bot (docs/runbooks/team-bot.md); its token and webhook secret are secrets.
+        "TEAM_BOT_USERNAME": "YengaTeamTestBot",
       },
       "d1_databases": [
         {
