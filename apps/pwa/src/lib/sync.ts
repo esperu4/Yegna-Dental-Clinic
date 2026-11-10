@@ -15,6 +15,7 @@ import {
   type SyncOp,
   type SyncResponse,
   type WriteEntity,
+  bookingWindowStart,
   rowKey,
   uuidv7,
 } from '@yegna/shared/client';
@@ -234,6 +235,7 @@ export function createSync(
         // The server answered none of our ops this time (it ran out of budget): try again later.
         if (!res.more && entries.length > 0 && res.results.length === 0) break;
       }
+      await pruneOldBookings();
       lastError.value = null;
       // The network may have dropped while the last response was arriving: then stay offline.
       const online = typeof navigator === 'undefined' || navigator.onLine !== false;
@@ -277,6 +279,8 @@ export function createSync(
       const stillPending = await store.outbox.orderBy('seq').toArray();
       const pendingFor = (entity: PullEntity, key: string) =>
         stillPending.filter((e) => e.op.entity === entity && e.op.entityId === key);
+      const seenUpTo = (await store.getMeta<number>(CURSOR_KEY)) ?? 0;
+      const windowStart = bookingWindowStart(now());
 
       for (const result of res.results) {
         const op = sentById.get(result.opId)?.op;
@@ -309,6 +313,18 @@ export function createSync(
           // Never step back: a response that raced a newer one (another tab; later the service
           // worker) must not overwrite a row the device already holds at a higher version.
           if (local && !local.provisional && (local.version as number) > serverRow.version) continue;
+          // A booking this device does not hold is only taken if it belongs in the window and is
+          // newer than what the device has already pulled. Otherwise it was dropped on purpose
+          // (left the window, PRD §7.1) and this copy is either old or a late, stale response:
+          // storing it would bring back a booking at a time it no longer has.
+          if (
+            entity === 'bookings' &&
+            !local &&
+            pendingFor(entity, key).length === 0 &&
+            (serverRow.version <= seenUpTo || (serverRow as { startAt: number }).startAt < windowStart)
+          ) {
+            continue;
+          }
           // A tombstone is kept as is (key + version + deletedAt; screens skip it), so the version
           // check above still works for late responses. Pending edits are not replayed onto it:
           // the server refuses them and they come back as notices. Notices about the deleted row
@@ -343,6 +359,19 @@ export function createSync(
         }
       }
 
+      // An answered op whose result the device already holds (another engine pulled the row while
+      // the op was still waiting, and this answer came back from the server's stored result) has
+      // no row in this response: the row must not stay marked "not sent yet".
+      for (const result of res.results) {
+        const op = sentById.get(result.opId)?.op;
+        if (!op || result.outcome === 'rejected' || pendingFor(op.entity, op.entityId).length) continue;
+        const table = store.entity(op.entity);
+        const local = (await table.get(op.entityId)) as AnyRow | undefined;
+        if (local?.provisional && (local.version as number) >= result.version) {
+          await table.put({ ...local, provisional: false } as never);
+        }
+      }
+
       const cursor = (await store.getMeta<number>(CURSOR_KEY)) ?? 0;
       await store.setMeta(CURSOR_KEY, Math.max(cursor, res.newCursor));
       if (initial && !res.more) await store.setMeta(FILLED_KEY, true);
@@ -350,6 +379,26 @@ export function createSync(
     });
     await refresh();
     return newFromOthers;
+  }
+
+  /**
+   * Drops bookings that have left the device's window (older than today − 30 days, PRD §7.1);
+   * history loads on demand. A booking with a change still waiting to be sent is kept until the
+   * server has answered it. A later change to a dropped booking brings it back for a while.
+   */
+  async function pruneOldBookings(): Promise<void> {
+    const cutoff = bookingWindowStart(now());
+    await store.transaction('rw', store.bookings, store.outbox, store.notices, async () => {
+      const old = await store.bookings.where('startAt').below(cutoff).primaryKeys();
+      if (old.length === 0) return;
+      const pending = new Set(
+        (await store.outbox.toArray()).filter((e) => e.op.entity === 'bookings').map((e) => e.op.entityId),
+      );
+      const dropped = new Set(old.filter((id) => !pending.has(id)));
+      await store.bookings.bulkDelete([...dropped]);
+      // Their clash or needs-fixing notices can no longer be acted on.
+      await store.notices.filter((n) => n.entity === 'bookings' && dropped.has(n.entityId)).delete();
+    });
   }
 
   /** Keep syncing while the app is open: every 30 s, when back online and when shown (PRD §7.3). */

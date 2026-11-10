@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -p .",
     "test": "vitest run",
+    "test:sim": "vitest run test/sim",
     "e2e": "playwright test",
     "deploy:staging": "vite build --mode staging && wrangler deploy --env staging",
     "e2e:offline": "playwright test --config playwright.offline.config.ts"

@@ -13,10 +13,10 @@ import {
   type RowOf,
   type SyncChanges,
   type Tombstone,
-  WINDOW_PAST_DAYS,
+  bookingWindowStart,
   rowKey,
 } from '@yegna/shared';
-import { DEFAULT_WEEKLY_HOURS, type WeeklyDefaults, addDays, localDateOf, localToUtc } from '@yegna/time';
+import { DEFAULT_WEEKLY_HOURS, type WeeklyDefaults } from '@yegna/time';
 import type { Db } from '../lib/db.ts';
 import { KEY_COLUMNS, TABLES } from './tables.ts';
 
@@ -133,11 +133,6 @@ function parseWeeklyHours(json: string): WeeklyDefaults {
   }
 }
 
-/** Start of the booking window the device keeps: today − 30 days, clinic time (PRD §7.1). */
-export function windowStart(now: number): number {
-  return localToUtc(addDays(localDateOf(now), -WINDOW_PAST_DAYS), 0);
-}
-
 export interface PullResult {
   changes: SyncChanges;
   newCursor: number;
@@ -162,7 +157,7 @@ export async function pull(
     const conditions: SQL[] = [versionCondition];
     // A pull from cursor 0 is always a first fill, whatever the device says.
     if (entity === 'bookings' && (initial || cursor === 0)) {
-      conditions.push(gte(bookings.startAt, windowStart(now)));
+      conditions.push(gte(bookings.startAt, bookingWindowStart(now)));
     }
     return conditions;
   };

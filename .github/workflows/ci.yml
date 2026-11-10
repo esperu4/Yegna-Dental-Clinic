@@ -52,9 +52,26 @@ jobs:
           path: apps/pwa/test-results/
           retention-days: 7
 
+  sync-sim:
+    # PRD §7.10: ≥ 3 devices, random offline/online interleavings, ≥ 1,000 randomized runs.
+    name: Sync simulation (1,000 runs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @yegna/pwa test:sim
+        env:
+          SYNC_SIM_RUNS: 1000
+
   deploy-staging:
     name: Deploy to staging
-    needs: [check, e2e]
+    needs: [check, e2e, sync-sim]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: staging

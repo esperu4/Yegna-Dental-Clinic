@@ -487,6 +487,113 @@ describe('device sync: robustness', () => {
     expect(sync.notices.value).toEqual([]);
   });
 
+  it('clears "not sent yet" when the answer arrives after the row was already pulled', async () => {
+    const { server, db, sync } = await setup();
+    server.offline = true;
+    const op = await sync.write('patients', 'create', patient());
+    await sync.syncNow();
+    // The other engine on this phone (service worker) pulled the row at the op's version while the
+    // op was still waiting; the answer to the op comes later, from the server's stored result.
+    await db.patients.update(op.entityId, { version: 7 });
+    await db.setMeta('syncCursor', 7);
+    expect((await db.patients.get(op.entityId))?.provisional).toBe(true);
+    server.offline = false;
+    server.handle = async (req) => ({
+      results: req.ops.map((o) => ({ opId: o.opId, outcome: 'applied' as const, version: 7 })),
+      changes: {},
+      newCursor: req.cursor,
+      more: false,
+    });
+    await sync.syncNow();
+    expect((await db.patients.get(op.entityId))?.provisional).toBe(false);
+  });
+
+  describe('bookings outside what the device keeps (PRD §7.1)', () => {
+    const day = 86_400_000;
+    const serverBooking = (id: string, startAt: number, version: number) => ({
+      id,
+      patientId: 'p1',
+      procedureId: null,
+      startAt,
+      durationMin: 30,
+      status: 'approved' as const,
+      approvedBy: null,
+      approvedAt: null,
+      patientConfirmedAt: null,
+      source: 'app' as const,
+      cancelReason: null,
+      clashWithId: null,
+      note: null,
+      createdBy: 'someone-else',
+      version,
+      updatedAt: 0,
+      updatedBy: null,
+      deletedAt: null,
+    });
+
+    async function answerWith(bookings: ReturnType<typeof serverBooking>[]) {
+      const { server, db, session } = await setup();
+      const summaries: unknown[] = [];
+      const sync = createSync({ db, session, onSummary: (s) => summaries.push(s) });
+      await db.setMeta('syncFilled', true);
+      await db.setMeta('syncCursor', 8);
+      server.handle = async (req) => ({
+        results: [],
+        changes: { bookings: bookings as never },
+        newCursor: Math.max(req.cursor, ...bookings.map((b) => b.version)),
+        more: false,
+      });
+      await sync.syncNow();
+      return { db, summaries };
+    }
+
+    it('does not bring back a dropped booking from a late, older response', async () => {
+      // The device pulled up to 8 and dropped this booking; a slow response still carries version 5.
+      const { db } = await answerWith([serverBooking('late', Date.now() + day, 5)]);
+      expect(await db.bookings.get('late')).toBeUndefined();
+    });
+
+    it('neither keeps nor announces an old booking changed on the server', async () => {
+      const { db, summaries } = await answerWith([serverBooking('old', Date.now() - 40 * day, 9)]);
+      expect(await db.bookings.get('old')).toBeUndefined();
+      expect(summaries).toEqual([]);
+    });
+
+    it('still takes a new booking in the window', async () => {
+      const { db, summaries } = await answerWith([serverBooking('new', Date.now() + day, 9)]);
+      expect(await db.bookings.get('new')).toBeDefined();
+      expect(summaries).toHaveLength(1);
+    });
+  });
+
+  it('drops bookings older than the window after a sync, keeping ones with a change waiting (PRD §7.1)', async () => {
+    const { server, db, sync } = await setup();
+    const booking = (id: string, startAt: number) => ({
+      id,
+      patientId: 'p1',
+      procedureId: null,
+      startAt,
+      durationMin: 30,
+      status: 'approved',
+      note: null,
+      version: 1,
+      updatedAt: 0,
+      updatedBy: null,
+      deletedAt: null,
+    });
+    const day = 86_400_000;
+    await db.bookings.bulkPut([
+      booking('old', Date.now() - 40 * day),
+      booking('old-edited', Date.now() - 40 * day),
+      booking('in-window', Date.now() - 20 * day),
+    ] as never);
+    // The server holds the edit back: it stays in the outbox, so its booking stays too.
+    server.holdOps = true;
+    await sync.write('bookings', 'update', { note: 'x-ray done' }, 'old-edited');
+    await sync.syncNow();
+    expect((await db.bookings.toCollection().primaryKeys()).sort()).toEqual(['in-window', 'old-edited']);
+  });
+
   it('asks for the first-fill window until the first full pull is done', async () => {
     const { server, sync } = await setup();
     await sync.syncNow();

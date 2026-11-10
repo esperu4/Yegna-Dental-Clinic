@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isMobileE164, isUuidv7, normalizePhone, uuidv7 } from '../src/index.ts';
+import { bookingWindowStart, isMobileE164, isUuidv7, normalizePhone, uuidv7 } from '../src/index.ts';
 
 describe('normalizePhone', () => {
   it.each([
@@ -45,5 +45,17 @@ describe('uuidv7', () => {
   it('does not collide', () => {
     const ids = new Set(Array.from({ length: 10_000 }, () => uuidv7(0)));
     expect(ids.size).toBe(10_000);
+  });
+});
+
+describe('bookingWindowStart (PRD §7.1)', () => {
+  it('is midnight in Addis Ababa, 30 days before today', () => {
+    // 10:00 in Addis on 10 Nov 2026 → 00:00 in Addis on 11 Oct 2026 (21:00 UTC the day before).
+    expect(bookingWindowStart(Date.UTC(2026, 10, 10, 7))).toBe(Date.UTC(2026, 9, 10, 21));
+  });
+
+  it('follows the clinic day, not the UTC day', () => {
+    // 22:30 UTC on 10 Nov is already 11 Nov in Addis.
+    expect(bookingWindowStart(Date.UTC(2026, 10, 10, 22, 30))).toBe(Date.UTC(2026, 9, 11, 21));
   });
 });
