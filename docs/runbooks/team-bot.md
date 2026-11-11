@@ -29,6 +29,12 @@ npx wrangler secret put TEAM_BOT_WEBHOOK_SECRET --env staging # paste a new rand
 
 A random value: `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`.
 
+Run these in a real terminal window, where wrangler shows "Enter a secret value:". Where it cannot
+ask (Claude Code's `!` prompt, CI), it reads standard input instead, and with nothing piped in it
+stores an **empty** secret and still prints "Success". Settings then says the bot is not set up.
+To store a generated value without typing it:
+`openssl rand -hex 32 | npx wrangler secret put TEAM_BOT_WEBHOOK_SECRET --env staging`.
+
 ## 3. Set the username
 
 Add `"TEAM_BOT_USERNAME": "<username without @>"` to the environment's `vars` in
