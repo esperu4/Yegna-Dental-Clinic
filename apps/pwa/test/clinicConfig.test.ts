@@ -81,6 +81,11 @@ describe('weekly hours', () => {
     const custom = withWeekday(DEFAULT_WEEKLY_HOURS, 0, STANDARD_DAY);
     expect(weeklyHoursOf(undefined)).toBe(DEFAULT_WEEKLY_HOURS);
     expect(weeklyHoursOf({ weeklyHours: custom, deletedAt: null })).toBe(custom);
+    // A settings row made locally by another change (e.g. the default template) before the
+    // weekly hours were ever saved has no hours yet: the defaults apply.
+    expect(weeklyHoursOf({ deletedAt: null } as unknown as Parameters<typeof weeklyHoursOf>[0])).toBe(
+      DEFAULT_WEEKLY_HOURS,
+    );
     expect(custom[0]).toEqual(STANDARD_DAY);
     expect(DEFAULT_WEEKLY_HOURS[0]).toBeNull();
   });

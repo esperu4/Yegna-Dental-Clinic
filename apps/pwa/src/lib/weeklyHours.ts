@@ -7,7 +7,9 @@ import type { MessageKey } from '../i18n/index.ts';
 export function weeklyHoursOf(
   settings: Pick<SettingsRow, 'weeklyHours' | 'deletedAt'> | undefined,
 ): WeeklyDefaults {
-  return settings && settings.deletedAt == null ? settings.weeklyHours : DEFAULT_WEEKLY_HOURS;
+  // A row created locally by another settings change (e.g. the default template) before the
+  // first full pull may not carry the hours yet.
+  return (settings && settings.deletedAt == null && settings.weeklyHours) || DEFAULT_WEEKLY_HOURS;
 }
 
 /** Times offered in the editor: 05:00 (11:00 ET at night) to 22:00, on the 15-minute grid. */

@@ -119,6 +119,9 @@ function WorkLinks() {
           {t('approvals.nav', { n: waiting })}
         </button>
       ) : null}
+      <button type="button" class="secondary" onClick={() => go('print')}>
+        {t('print.nav')}
+      </button>
     </nav>
   );
 }

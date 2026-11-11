@@ -11,7 +11,8 @@ export type Route =
   | 'procedures'
   | 'hours'
   | 'holidays'
-  | 'wizard';
+  | 'wizard'
+  | 'print';
 const ROUTES: readonly Route[] = [
   'home',
   'calls',
@@ -23,6 +24,7 @@ const ROUTES: readonly Route[] = [
   'hours',
   'holidays',
   'wizard',
+  'print',
 ];
 
 function parse(): Route {

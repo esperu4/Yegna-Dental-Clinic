@@ -654,3 +654,216 @@ a.button {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* Paper templates (PRD §11): A4 landscape, thin black lines, no colour needed. On screen the
+   sheet is a scaled preview; printing shows only the sheets. */
+.print-period {
+  flex: 1;
+  text-align: center;
+}
+.papers {
+  overflow-x: auto;
+  margin-top: 16px;
+}
+.paper {
+  width: 281mm;
+  min-width: 281mm;
+  height: 194mm;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2mm;
+  padding: 0;
+  background: #fff;
+  color: #000;
+  font-size: 7.5pt;
+  line-height: 1.15;
+  margin-bottom: 8mm;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.paper-head {
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+}
+.paper-head > div:first-child {
+  flex: 1;
+}
+.paper-clinic {
+  font-weight: 700;
+  font-size: 10pt;
+}
+.paper-id {
+  font:
+    700 15pt/1 ui-monospace,
+    'Courier New',
+    monospace;
+  letter-spacing: 0.5mm;
+}
+.paper .qr svg {
+  width: 13mm;
+  height: 13mm;
+  display: block;
+}
+.paper .grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.paper .grid th,
+.paper .grid td {
+  border: 0.2mm solid #000;
+  padding: 0 0.6mm;
+  vertical-align: top;
+  overflow: hidden;
+}
+.paper .grid thead th {
+  font-weight: 700;
+  text-align: center;
+  height: 7mm;
+  vertical-align: middle;
+}
+.paper .hour-col {
+  width: 12mm;
+  font-weight: 700;
+  font-size: 6.5pt;
+  padding-top: 0.6mm;
+}
+.paper tbody tr {
+  height: var(--hour-h);
+}
+.paper .lunch td,
+.paper .lunch th {
+  background: repeating-linear-gradient(45deg, #fff 0 1.2mm, #ccc 1.2mm 1.5mm);
+}
+.paper td.closed,
+.paper td.outside {
+  background: #e6e6e6;
+}
+/* One entry: minute | name | 10 phone digit boxes | code (PRD §11). Fixed widths, the name takes
+   the rest; nothing can grow past the cell. */
+.paper .entry {
+  display: grid;
+  grid-template-columns: 3.6mm minmax(0, 1fr) auto 3.6mm;
+  column-gap: 0.5mm;
+  align-items: end;
+  height: var(--entry-h);
+  padding-bottom: 0.4mm;
+}
+.paper .entry + .entry {
+  border-top: 0.1mm dotted #888;
+}
+.paper .entry .minute {
+  font-size: 6.5pt;
+}
+.paper .entry .name {
+  border-bottom: 0.15mm solid #000;
+  height: 3.4mm;
+}
+.paper .entry .digits {
+  display: flex;
+}
+.paper .entry .box,
+.paper .entry .code {
+  display: block;
+  width: 2.2mm;
+  height: 3.4mm;
+  border: 0.15mm solid #000;
+  border-right-width: 0;
+}
+.paper .entry .box:last-child {
+  border-right-width: 0.15mm;
+}
+.paper .entry .code {
+  width: 3.6mm;
+  border-right-width: 0.15mm;
+}
+/* C: three days a page, so every box is about twice as wide. */
+.paper-C {
+  font-size: 9pt;
+}
+.paper-C .hour-col {
+  width: 17mm;
+  font-size: 8.5pt;
+}
+.paper-C .entry {
+  grid-template-columns: 6mm minmax(0, 1fr) auto 6mm;
+  column-gap: 1mm;
+}
+.paper-C .entry .minute {
+  font-size: 8.5pt;
+}
+.paper-C .entry .box {
+  width: 4.4mm;
+  height: 4.4mm;
+}
+.paper-C .entry .code {
+  width: 6mm;
+  height: 4.4mm;
+}
+.paper-C .entry .name {
+  height: 4.4mm;
+}
+.paper .month tbody tr {
+  height: var(--week-h);
+}
+.paper .day-no {
+  font-weight: 700;
+  font-size: 9pt;
+}
+.paper .month-line {
+  display: flex;
+  gap: 1mm;
+  align-items: flex-end;
+  height: var(--line-h);
+}
+.paper .month-line .at {
+  width: 10mm;
+  height: 3.4mm;
+  border: 0.15mm solid #000;
+  text-align: center;
+  font-size: 6.5pt;
+  line-height: 3.2mm;
+}
+.paper .month-line .name {
+  flex: 1;
+  border-bottom: 0.15mm solid #000;
+  height: 3.4mm;
+}
+.paper-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1mm 4mm;
+}
+
+@page {
+  size: A4 landscape;
+  margin: 8mm;
+}
+@media print {
+  body,
+  .screen,
+  .content {
+    background: #fff !important;
+    margin: 0;
+    padding: 0;
+    max-width: none;
+  }
+  .bar,
+  .no-print {
+    display: none !important;
+  }
+  .papers {
+    margin: 0;
+    overflow: visible;
+  }
+  .paper {
+    box-shadow: none;
+    margin: 0;
+    break-after: page;
+  }
+  .paper:last-child {
+    break-after: auto;
+  }
+}

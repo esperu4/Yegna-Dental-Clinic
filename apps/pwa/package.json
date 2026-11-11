@@ -19,7 +19,8 @@
     "@yegna/shared": "workspace:*",
     "@yegna/time": "workspace:*",
     "dexie": "^4.4.7",
-    "preact": "^11.2.0"
+    "preact": "^11.2.0",
+    "uqr": "0.1.3"
   },
   "devDependencies": {
     "@playwright/test": "1.65.0",
