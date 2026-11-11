@@ -6,7 +6,7 @@
  *   `t.me/<bot>?start=<code>`; unlinking.
  * - `POST /telegram/team`: the webhook. The secret header is checked first (PRD §18). Only
  *   private chats of linked, enabled team members are served, looked up at each update; anyone
- *   else gets one generic refusal. Approving from the bot goes through the same op logic as the
+ *   else gets one generic refusal, at most once a day per chat (so spam costs no replies). Approving from the bot goes through the same op logic as the
  *   PWA's sync, and only for bookings shown in that message and unchanged since.
  */
 import { and, eq, isNull, like } from 'drizzle-orm';
@@ -22,7 +22,7 @@ import type { Db } from '../lib/db.ts';
 import { type AppEnv, fail } from '../lib/http.ts';
 import type { QueryMeter } from '../lib/queryMeter.ts';
 import { requireDevice, requireDoctor } from '../lib/session.ts';
-import { bookingLinesBetween } from '../jobs/team.ts';
+import { type OnceADayKind, bookingLinesBetween } from '../jobs/team.ts';
 import { type Recipient, botText, daySchedule } from '../notify/messages.ts';
 import { sendErrorKind } from '../notify/notifier.ts';
 import { MAX_QUERIES_PER_OP, applyOp } from '../sync/apply.ts';
@@ -72,6 +72,7 @@ telegram.delete('/me/telegram', requireDevice, async (c) => {
   const session = c.get('session');
   await db.batch([
     db.update(users).set({ telegramChatId: null }).where(eq(users.id, session.user.id)),
+    db.delete(telegramLinkCodes).where(eq(telegramLinkCodes.userId, session.user.id)),
     auditInsert(db, session, 'users', session.user.id, 'telegram_unlink', null, Date.now()),
   ]);
   return c.json({ linked: false });
@@ -163,13 +164,13 @@ export function teamBot(env: Env, db: Db, meter: QueryMeter, options: BotOptions
     const code = ctx.match.trim();
     if (code) return link(ctx, code);
     const member = await memberFor(ctx);
-    await ctx.reply(member ? botText.help(member) : botText.notLinked);
+    await (member ? ctx.reply(botText.help(member)) : refuse(ctx));
   });
 
   for (const which of ['today', 'tomorrow'] as const) {
     chats.command(which, async (ctx) => {
       const member = await memberFor(ctx);
-      if (!member) return void (await ctx.reply(botText.notLinked));
+      if (!member) return refuse(ctx);
       const today = localDateOf(now());
       const date = which === 'today' ? today : addDays(today, 1);
       const lines = await bookingLinesBetween(db, localToUtc(date, 0), localToUtc(addDays(date, 1), 0));
@@ -215,8 +216,36 @@ export function teamBot(env: Env, db: Db, meter: QueryMeter, options: BotOptions
   // Any other message: help for the team, the refusal for everyone else (PRD §13).
   chats.on('message', async (ctx) => {
     const member = await memberFor(ctx);
-    await ctx.reply(member ? botText.help(member) : botText.notLinked);
+    await (member ? ctx.reply(botText.help(member)) : refuse(ctx));
   });
+
+  /** The generic refusal to anyone not linked (PRD §13), once a day. */
+  function refuse(ctx: BotContext): Promise<void> {
+    return onceToday(ctx, 'refusal', botText.notLinked);
+  }
+
+  /**
+   * Sends `text` at most once per chat per local day for this kind (privacy review L-1): a stranger
+   * sending many messages, or many wrong link codes, gets one answer, not one per message.
+   * Recorded in `notification_log` under a hash of the chat id (the raw id is never stored); the
+   * hourly housekeeping clears past days.
+   */
+  async function onceToday(ctx: BotContext, kind: OnceADayKind, text: string) {
+    const recorded = await db
+      .insert(notificationLog)
+      .values({
+        id: uuidv7(),
+        kind,
+        targetChatId: await sha256Hex(`tg-chat:${ctx.chat!.id}`),
+        bookingId: localDateOf(now()),
+        sentAt: now(),
+        status: 'sent',
+      })
+      .onConflictDoNothing()
+      .returning({ id: notificationLog.id })
+      .all();
+    if (recorded.length) await ctx.reply(text);
+  }
 
   /** The linked, enabled team member writing from this private chat (looked up now). */
   async function memberFor(ctx: BotContext): Promise<Member | null> {
@@ -264,7 +293,7 @@ export function teamBot(env: Env, db: Db, meter: QueryMeter, options: BotOptions
             .get()
         : undefined;
     if (!user) {
-      await ctx.reply(botText.linkFailed);
+      await onceToday(ctx, 'link_failed', botText.linkFailed);
       return;
     }
     await db.batch([

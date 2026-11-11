@@ -4,7 +4,15 @@
  * nothing twice. Jobs stop early when the run's D1 query budget runs low; the next hour continues.
  */
 import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt } from 'drizzle-orm';
-import { bookings, patients, procedures, settings, users } from '@yegna/db';
+import {
+  bookings,
+  notificationLog,
+  patients,
+  procedures,
+  settings,
+  telegramLinkCodes,
+  users,
+} from '@yegna/db';
 import {
   type BookingRow,
   type PatientRow,
@@ -290,6 +298,29 @@ export async function movableHolidayReminders(ctx: JobContext, team: Recipient[]
       ctx.now,
     );
   }
+}
+
+/** Bot replies limited to one per chat per day (`notification_log` kinds); rows last one day. */
+export const ONCE_A_DAY_KINDS = ['refusal', 'link_failed'] as const;
+export type OnceADayKind = (typeof ONCE_A_DAY_KINDS)[number];
+
+/**
+ * Clears what the bot no longer needs: once-a-day reply records of past days (they only limit
+ * refusals to one per chat per day) and link codes past their 10 minutes.
+ */
+export async function housekeeping(ctx: JobContext) {
+  if (!hasBudget(ctx)) return;
+  await ctx.db.batch([
+    ctx.db
+      .delete(notificationLog)
+      .where(
+        and(
+          inArray(notificationLog.kind, [...ONCE_A_DAY_KINDS]),
+          lt(notificationLog.bookingId, ctx.local.date),
+        ),
+      ),
+    ctx.db.delete(telegramLinkCodes).where(lt(telegramLinkCodes.expiresAt, ctx.now)),
+  ]);
 }
 
 /** The fields the shared call-list rule reads, from a joined row. */

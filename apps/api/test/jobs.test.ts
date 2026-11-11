@@ -273,6 +273,35 @@ describe('hourly cron: team jobs (PRD §13, §16)', () => {
     expect(telegram.sent.filter((s) => s.chatId === STAFF_CHAT)).toHaveLength(0);
   });
 
+  it('clears refusal records of past days and expired link codes', async () => {
+    const now = at(sunday(), 19);
+    const today = localDateOf(now);
+    const yesterday = addDays(today, -1);
+    const refusal = (day: string) =>
+      env.DB.prepare(
+        "INSERT INTO notification_log (id, kind, target_chat_id, booking_id, sent_at, status) VALUES (?, 'refusal', 'h', ?, 0, 'sent')",
+      ).bind(uuidv7(), day);
+    const code = (hash: string, expiresAt: number) =>
+      env.DB.prepare(
+        'INSERT INTO telegram_link_codes (code_hash, user_id, expires_at) VALUES (?, ?, ?)',
+      ).bind(hash, staff.user.id, expiresAt);
+    await env.DB.batch([
+      refusal(yesterday),
+      refusal(today),
+      code('old', now - 1),
+      code('live', now + 60_000),
+    ]);
+
+    await runHourly(env, now, new FakeTelegram());
+
+    const days = await env.DB.prepare(
+      "SELECT booking_id AS d FROM notification_log WHERE kind = 'refusal'",
+    ).all();
+    expect(days.results.map((r) => r.d)).toEqual([today]);
+    const codes = await env.DB.prepare('SELECT code_hash AS h FROM telegram_link_codes').all();
+    expect(codes.results.map((r) => r.h)).toEqual(['live']);
+  });
+
   it('does nothing without a bot token', async () => {
     const withoutToken = (): Env => {
       const { TEAM_BOT_TOKEN: _, ...rest } = env;

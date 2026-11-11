@@ -70,6 +70,10 @@ export const en = {
   'users.role.doctor': 'Doctor',
   'users.role.staff': 'Staff',
   'users.newPin.prompt': 'New PIN for {name} (4–6 digits)',
+  'users.telegramLinked': 'Telegram linked',
+  'users.unlinkTelegram': 'Unlink Telegram',
+  'users.unlinkTelegram.confirm':
+    'Unlink Telegram for {name}? They stop getting team messages until they link again.',
 
   'devices.revoke': 'Sign out this phone',
   'devices.revoke.confirm': 'Sign out “{label}”? Its data will be wiped next time it connects.',
@@ -355,6 +359,9 @@ export const am: Record<MessageKey, string> = {
   'users.role.doctor': 'ሐኪም',
   'users.role.staff': 'ሠራተኛ',
   'users.newPin.prompt': 'ለ{name} አዲስ ፒን (4–6 ቁጥሮች)',
+  'users.telegramLinked': 'ቴሌግራም ተገናኝቷል',
+  'users.unlinkTelegram': 'ቴሌግራም አላቅቅ',
+  'users.unlinkTelegram.confirm': 'የ{name}ን ቴሌግራም ማላቀቅ ይፈልጋሉ? እንደገና እስኪያገናኙ ድረስ የቡድን መልዕክቶች አይደርሳቸውም።',
 
   'devices.revoke': 'ይህን ስልክ አስወጣ',
   'devices.revoke.confirm': '“{label}”ን ያስወጡ? በሚቀጥለው ሲገናኝ መረጃው ይሰረዛል።',

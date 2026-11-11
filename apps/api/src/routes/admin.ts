@@ -36,11 +36,41 @@ async function nameTaken(db: Db, name: string, exceptId?: string): Promise<boole
 admin.get('/users', async (c) => {
   const rows = await c
     .get('db')
-    .select({ id: users.id, name: users.name, role: users.role, disabledAt: users.disabledAt })
+    .select({
+      id: users.id,
+      name: users.name,
+      role: users.role,
+      disabledAt: users.disabledAt,
+      // Whether Telegram is linked, never the chat id itself.
+      telegramLinked: sql<number>`${users.telegramChatId} IS NOT NULL`,
+    })
     .from(users)
     .where(isNull(users.deletedAt))
     .all();
-  return c.json(rows);
+  return c.json(rows.map((r) => ({ ...r, telegramLinked: Boolean(r.telegramLinked) })));
+});
+
+/**
+ * Unlinks a team member's Telegram (e.g. they changed phone number or left the clinic chat), and
+ * voids their unused link codes. The member can link again from their own Settings.
+ */
+admin.post('/users/:id/telegram/unlink', async (c) => {
+  const db = c.get('db');
+  const session = c.get('session');
+  const id = c.req.param('id');
+  const target = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, id), isNull(users.deletedAt)))
+    .get();
+  if (!target) return fail(c, 404, 'not_found');
+  const now = Date.now();
+  await db.batch([
+    db.update(users).set({ telegramChatId: null }).where(eq(users.id, id)),
+    db.delete(telegramLinkCodes).where(eq(telegramLinkCodes.userId, id)),
+    auditInsert(db, session, 'users', id, 'telegram_unlink', null, now),
+  ]);
+  return c.json({ id, telegramLinked: false });
 });
 
 admin.post('/users', async (c) => {

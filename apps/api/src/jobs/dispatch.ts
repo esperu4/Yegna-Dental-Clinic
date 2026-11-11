@@ -11,6 +11,7 @@ import {
   type JobContext,
   approvalDigests,
   clashAlerts,
+  housekeeping,
   callListMessages,
   linkedTeam,
   movableHolidayReminders,
@@ -26,6 +27,7 @@ const TEAM_JOBS = [
   ['unapproved_24h', unapprovedAlerts],
   ['approval_digest', approvalDigests],
   ['holiday_reminder', movableHolidayReminders],
+  ['housekeeping', housekeeping],
 ] as const;
 
 export async function runHourly(env: Env, now = Date.now(), notifier?: Notifier): Promise<void> {

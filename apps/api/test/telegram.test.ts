@@ -187,6 +187,26 @@ describe('team bot: linking (PRD §13)', () => {
     expect(replies(calls)[0]).toContain('expired');
   });
 
+  it('answers wrong codes once a day, apart from the stranger refusal', async () => {
+    const day = Date.now();
+    expect(replies(await botReceives(text(7790, 'hello'), day))).toHaveLength(1);
+    expect(replies(await botReceives(text(7790, '/start wrong1'), day))[0]).toContain('expired');
+    for (const body of ['/start wrong2', '/start wrong3']) {
+      expect(replies(await botReceives(text(7790, body), day))).toEqual([]);
+    }
+    // A valid code still links, whatever was refused before.
+    await link(staff, 7790);
+    expect(replies(await botReceives(text(7790, '/today'), day))).toHaveLength(1);
+    await call('DELETE', '/me/telegram', { token: staff.token });
+  });
+
+  it('unlinking from the app also voids unused link codes', async () => {
+    await link(staff, STAFF_CHAT);
+    const code = await linkCode(staff);
+    await call('DELETE', '/me/telegram', { token: staff.token });
+    expect(replies(await botReceives(text(STAFF_CHAT, `/start ${code}`)))[0]).toContain('expired');
+  });
+
   it('never links a group chat', async () => {
     const code = await linkCode(doctor);
     const calls = await botReceives(text(-100, `/start ${code}`, { id: -100, type: 'group', title: 'g' }));
@@ -215,6 +235,33 @@ describe('team bot: who it serves', () => {
   it('politely refuses anyone not linked, and nothing more', async () => {
     const calls = await botReceives(text(7777, 'hello'));
     expect(replies(calls)).toEqual([expect.stringContaining('only for the Yegna Dental Clinic team')]);
+  });
+
+  it('refuses a stranger once a day, then stays silent (no spam, no cost)', async () => {
+    const day = Date.now();
+    const first = await botReceives(text(7778, 'hello'), day);
+    expect(replies(first)).toHaveLength(1);
+    for (const body of ['again', '/today', '/start']) {
+      expect(replies(await botReceives(text(7778, body), day + 60_000))).toEqual([]);
+    }
+    // Another stranger is not affected.
+    expect(replies(await botReceives(text(7779, 'hi'), day))).toHaveLength(1);
+    // The next day, one more refusal.
+    expect(replies(await botReceives(text(7778, 'hello'), day + 86_400_000))).toHaveLength(1);
+    // The chat id itself is not stored.
+    const stored = await env.DB.prepare(
+      "SELECT target_chat_id AS t FROM notification_log WHERE kind = 'refusal'",
+    ).all();
+    expect(stored.results.length).toBeGreaterThan(0);
+    for (const row of stored.results) expect(String(row.t)).not.toMatch(/^777[89]$/);
+  });
+
+  it('still answers a team member who was refused before linking', async () => {
+    const day = Date.now();
+    expect(replies(await botReceives(text(7780, 'hello'), day))).toHaveLength(1);
+    await link(staff, 7780);
+    expect(replies(await botReceives(text(7780, '/today'), day))).toHaveLength(1);
+    await call('DELETE', '/me/telegram', { token: staff.token });
   });
 
   it('checks the webhook secret first', async () => {
@@ -321,6 +368,36 @@ describe('team bot: losing access', () => {
     expect(replies(await botReceives(text(STAFF_CHAT, '/today')))[0]).toContain('only for the Yegna');
     await call('PATCH', `/admin/users/${staff.user.id}`, { token: doctor.token, body: { disabled: false } });
     expect(replies(await botReceives(text(STAFF_CHAT, `/start ${code}`)))[0]).toContain('expired');
+  });
+
+  it('lets the Doctor see who linked Telegram and unlink a team member', async () => {
+    await link(staff, STAFF_CHAT);
+    const code = await linkCode(staff);
+    const listed = await call('GET', '/admin/users', { token: doctor.token });
+    const hana = (listed.json as unknown as { id: string; telegramLinked: boolean }[]).find(
+      (u) => u.id === staff.user.id,
+    );
+    expect(hana?.telegramLinked).toBe(true);
+    expect(JSON.stringify(listed.json)).not.toContain(String(STAFF_CHAT));
+
+    expect(
+      (await call('POST', `/admin/users/${staff.user.id}/telegram/unlink`, { token: staff.token })).status,
+    ).toBe(403);
+    const res = await call('POST', `/admin/users/${staff.user.id}/telegram/unlink`, { token: doctor.token });
+    expect(res.status).toBe(200);
+    expect(res.json).toMatchObject({ telegramLinked: false });
+    expect(replies(await botReceives(text(STAFF_CHAT, '/today')))[0]).toContain('only for the Yegna');
+    // Codes made before the unlink are void too.
+    expect(replies(await botReceives(text(STAFF_CHAT, `/start ${code}`)))[0]).toContain('expired');
+    const audit = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM audit_log WHERE action = 'telegram_unlink' AND entity_id = ?",
+    )
+      .bind(staff.user.id)
+      .first<{ n: number }>();
+    expect(audit?.n).toBe(1);
+    expect((await call('POST', '/admin/users/nobody/telegram/unlink', { token: doctor.token })).status).toBe(
+      404,
+    );
   });
 
   it('does not approve a booking whose patient was erased', async () => {

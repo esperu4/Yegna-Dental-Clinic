@@ -12,6 +12,7 @@ interface UserRow {
   name: string;
   role: 'doctor' | 'staff';
   disabledAt: number | null;
+  telegramLinked: boolean;
 }
 
 function useList<T>(path: string) {
@@ -60,6 +61,14 @@ export function Users() {
     });
   }
 
+  function unlinkTelegram(u: UserRow) {
+    if (!confirm(t('users.unlinkTelegram.confirm', { name: u.name }))) return;
+    void run(async () => {
+      await session.authed(`/admin/users/${u.id}/telegram/unlink`, { method: 'POST' });
+      await reload();
+    });
+  }
+
   function newPin(u: UserRow) {
     const value = prompt(t('users.newPin.prompt', { name: u.name }))?.trim();
     if (!value) return;
@@ -87,8 +96,16 @@ export function Users() {
                 {' '}
                 · {t(u.role === 'doctor' ? 'users.role.doctor' : 'users.role.staff')}
                 {u.disabledAt ? ` · ${t('users.disabled')}` : ''}
+                {u.telegramLinked ? ` · ${t('users.telegramLinked')}` : ''}
               </span>
             </div>
+            {u.telegramLinked && u.id !== session.current.value?.user.id ? (
+              <div class="actions">
+                <button type="button" disabled={busy} onClick={() => unlinkTelegram(u)}>
+                  {t('users.unlinkTelegram')}
+                </button>
+              </div>
+            ) : null}
             {u.role === 'staff' ? (
               <div class="actions">
                 <button type="button" disabled={busy} onClick={() => newPin(u)}>

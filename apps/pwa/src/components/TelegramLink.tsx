@@ -56,6 +56,12 @@ export function TelegramLink() {
             disabled={busy}
             onClick={() =>
               void run(async () => {
+                // The Doctor's link also connects the bot (idempotent), so Telegram can deliver the
+                // linking message: linking before connecting used to fail silently.
+                if (session.current.value?.user.role === 'doctor') {
+                  await session.authed('/admin/telegram/connect', { method: 'POST' });
+                  setConnected(true);
+                }
                 const { url } = await session.authed<{ url: string }>('/me/telegram/link', {
                   method: 'POST',
                 });
