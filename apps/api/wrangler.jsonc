@@ -27,6 +27,8 @@
         // The staging test bot (docs/runbooks/team-bot.md); its token and webhook secret are secrets.
         "TEAM_BOT_USERNAME": "YengaTeamTestBot",
       },
+      // Workers AI: the first free schedule reader (ADR 0009). Not in local dev (it is remote only).
+      "ai": { "binding": "AI" },
       "d1_databases": [
         {
           "binding": "DB",

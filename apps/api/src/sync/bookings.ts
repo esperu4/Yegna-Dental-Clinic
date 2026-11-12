@@ -78,7 +78,7 @@ export async function clinicHoursError(
   return hoursError(rows as unknown[], startAt, durationMin);
 }
 
-function parseWeekly(json: string | undefined): WeeklyDefaults {
+export function parseWeekly(json: string | undefined): WeeklyDefaults {
   if (!json) return DEFAULT_WEEKLY_HOURS;
   try {
     return JSON.parse(json) as WeeklyDefaults;

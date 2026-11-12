@@ -29,20 +29,47 @@ export async function createTestEnv(overrides: Partial<Env> = {}) {
 export type Call = (
   method: string,
   path: string,
-  opts?: { body?: unknown; token?: string; headers?: Record<string, string> },
+  opts?: {
+    body?: unknown;
+    /** A raw body (e.g. an uploaded photo) instead of JSON. */
+    raw?: { data: Uint8Array; type: string };
+    token?: string;
+    headers?: Record<string, string>;
+  },
 ) => Promise<{ status: number; json: Record<string, unknown> & { error?: string }; headers: Headers }>;
+
+/** Work routes hand to `waitUntil`; tests await it with `settle()`. */
+const background: Promise<unknown>[] = [];
+const executionCtx = {
+  waitUntil: (work: Promise<unknown>) => void background.push(work),
+  passThroughOnException: () => undefined,
+  props: {},
+} as unknown as ExecutionContext;
+
+/** Waits for everything routes started in the background so far. */
+export async function settle(): Promise<void> {
+  while (background.length) await Promise.allSettled(background.splice(0));
+}
 
 export function caller(env: Env): Call {
   return async (method, path, opts = {}) => {
     const headers: Record<string, string> = { ...opts.headers };
     if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
+    if (opts.raw) {
+      headers['Content-Type'] = opts.raw.type;
+      // Browsers declare the size of an uploaded body; a test can override it.
+      headers['Content-Length'] ??= String(opts.raw.data.byteLength);
+    }
     if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
+    const body = opts.raw ? opts.raw.data : opts.body !== undefined ? JSON.stringify(opts.body) : undefined;
     const res = await app.request(
       path,
-      { method, headers, ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}) },
+      { method, headers, ...(body !== undefined ? { body } : {}) },
       env,
+      executionCtx,
     );
-    const text = await res.text();
+    const type = res.headers.get('content-type') ?? '';
+    const text = type.startsWith('image/') ? '' : await res.text();
     return { status: res.status, json: text ? JSON.parse(text) : {}, headers: res.headers };
   };
 }

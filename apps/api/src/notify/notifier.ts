@@ -22,9 +22,17 @@ export interface Notifier {
   send(chatId: string, message: OutgoingMessage): Promise<void>;
 }
 
+/**
+ * grammY client options: the platform's `fetch`, looked up at each call (in Workers it is the
+ * global anyway; in Node tests it is the test's fake, so tests never reach Telegram).
+ */
+export const TELEGRAM_CLIENT = {
+  fetch: ((input, init) => globalThis.fetch(input, init)) as typeof fetch,
+};
+
 /** The Yegna Team bot through grammY's Bot API client. */
 export function telegramNotifier(token: string): Notifier {
-  const api = new Api(token);
+  const api = new Api(token, TELEGRAM_CLIENT);
   return {
     async send(chatId, message) {
       try {

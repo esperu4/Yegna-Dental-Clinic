@@ -95,4 +95,7 @@ export type ApiErrorCode =
   | 'name_taken'
   | 'cannot_change_self'
   | 'conflict'
-  | 'not_configured';
+  | 'not_configured'
+  /** App upload of an import: the uploader must have linked Telegram (the photo is kept there). */
+  | 'telegram_not_linked'
+  | 'too_large';

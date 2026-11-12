@@ -452,6 +452,46 @@ describe('POST /sync: refusals and limits', () => {
 
 // Each of these runs several rounds of simultaneous requests: allow for a loaded machine.
 describe('POST /sync: concurrent devices', { timeout: 60_000 }, () => {
+  it('books an import row once when two phones confirm it at the same moment', async () => {
+    const pid = newPatient(doctor);
+    await sync(doctor, [pid]);
+    for (let i = 0; i < 5; i++) {
+      const importId = uuidv7();
+      const rowId = uuidv7();
+      await env.DB.batch([
+        env.DB.prepare(
+          "INSERT INTO imports (id, telegram_file_id, uploaded_by, status, created_at, version, updated_at) VALUES (?, 'f', ?, 'read', 0, 0, 0)",
+        ).bind(importId, staff.user.id),
+        env.DB.prepare(
+          "INSERT INTO import_rows (id, import_id, name_text, match, decision, version, updated_at) VALUES (?, ?, 'A', 'existing', 'accept', 0, 0)",
+        ).bind(rowId, importId),
+      ]);
+      const create = (as: EnrolResponse, hour: number) =>
+        op(as, 'bookings', 'create', {
+          patientId: pid.entityId,
+          procedureId: null,
+          startAt: nextMonday(hour) + i * 7 * 86_400_000,
+          durationMin: 30,
+          importRowId: rowId,
+        });
+      const a = create(staff, 9);
+      const b = create(doctor, 15);
+      const [ra, rb] = await Promise.all([sync(staff, [a]), sync(doctor, [b])]);
+      const outcomes = [ra.json.results[0]!, rb.json.results[0]!];
+      expect(outcomes.filter((o) => o.outcome === 'applied')).toHaveLength(1);
+      expect(outcomes.find((o) => o.outcome === 'rejected')).toMatchObject({ reason: 'import_row_used' });
+      const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM bookings WHERE import_row_id = ?')
+        .bind(rowId)
+        .first<{ n: number }>();
+      expect(n!.n).toBe(1);
+      // A re-send gets the same answer.
+      const loser = outcomes[0]!.outcome === 'rejected' ? { as: staff, o: a } : { as: doctor, o: b };
+      expect((await sync(loser.as, [loser.o])).json.results[0]).toEqual(
+        outcomes.find((o) => o.outcome === 'rejected'),
+      );
+    }
+  });
+
   it('applies a decision only to the row it was made on (no revived cancel, no stale transition)', async () => {
     const pid = newPatient(doctor);
     const b = newBooking(doctor, pid.entityId, nextMonday(10));
@@ -631,6 +671,57 @@ describe('POST /sync: bookings (PRD §6, §7.4, §10)', () => {
     await sync(doctor, [d]);
     expect((await bookingStatus(s.entityId)).status).toBe('pending_approval');
     expect((await bookingStatus(d.entityId)).status).toBe('approved');
+  });
+
+  it('books a confirmed import row once, as source=import, through the normal rules (PRD §12)', async () => {
+    const pid = await patient();
+    const importId = uuidv7();
+    const rowId = uuidv7();
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO imports (id, telegram_file_id, uploaded_by, status, created_at, version, updated_at) VALUES (?, 'f', ?, 'read', 0, 0, 0)",
+      ).bind(importId, staff.user.id),
+      env.DB.prepare(
+        "INSERT INTO import_rows (id, import_id, name_text, match, decision, version, updated_at) VALUES (?, ?, 'Abebe', 'existing', 'accept', 0, 0)",
+      ).bind(rowId, importId),
+    ]);
+    const first = op(staff, 'bookings', 'create', {
+      patientId: pid,
+      procedureId: null,
+      startAt: nextMonday(9),
+      durationMin: 30,
+      importRowId: rowId,
+    });
+    expect((await sync(staff, [first])).json.results[0]).toMatchObject({ outcome: 'applied' });
+    const stored = await env.DB.prepare('SELECT source, import_row_id, status FROM bookings WHERE id = ?')
+      .bind(first.entityId)
+      .first();
+    // Normal approval rules: Staff's booking waits for the Doctor.
+    expect(stored).toEqual({ source: 'import', import_row_id: rowId, status: 'pending_approval' });
+
+    // The same row again (a second confirm, another phone): refused, not a second booking.
+    const again = op(staff, 'bookings', 'create', {
+      patientId: pid,
+      procedureId: null,
+      startAt: nextMonday(15),
+      durationMin: 30,
+      importRowId: rowId,
+    });
+    expect((await sync(staff, [again])).json.results[0]).toMatchObject({
+      outcome: 'rejected',
+      reason: 'import_row_used',
+    });
+    const unknown = op(staff, 'bookings', 'create', {
+      patientId: pid,
+      procedureId: null,
+      startAt: nextMonday(16),
+      durationMin: 30,
+      importRowId: uuidv7(),
+    });
+    expect((await sync(staff, [unknown])).json.results[0]).toMatchObject({
+      outcome: 'rejected',
+      reason: 'import_row_not_found',
+    });
   });
 
   it('stores an overlapping booking as a clash with the winner', async () => {

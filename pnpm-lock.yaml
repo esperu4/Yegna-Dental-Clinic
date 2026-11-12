@@ -190,6 +190,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@yegna/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@yegna/db':
         specifier: workspace:*
         version: link:../../packages/db

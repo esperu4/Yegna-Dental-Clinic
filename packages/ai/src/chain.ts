@@ -42,8 +42,12 @@ export async function readSchedule(
   options: ChainOptions = {},
 ): Promise<ChainOutcome> {
   const attempts: Attempt[] = [];
-  for (const reader of [...chain.primary, ...chain.lastResort]) {
+  const readers = [...chain.primary, ...chain.lastResort];
+  for (const [index, reader] of readers.entries()) {
     if (options.signal?.aborted) break;
+    // A last-resort reader only after a private reader really tried (configured, and failed):
+    // never as the only reader (privacy review 2026-11-11, ADR 0009).
+    if (index === chain.primary.length && !attempts.some((a) => a.outcome !== 'not_configured')) break;
     const timeout = AbortSignal.timeout(options.timeoutMs ?? DEFAULT_READER_TIMEOUT_MS);
     const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
     try {

@@ -75,6 +75,8 @@ const bookingCreate = z
     startAt: gridInstant,
     durationMin: gridDuration,
     note: optionalText(PATIENT_NOTE_MAX).optional(),
+    /** A confirmed import row (PRD §12): stored with `source = import`, one booking per row. */
+    importRowId: uuidv7Schema.optional(),
   })
   .strict();
 

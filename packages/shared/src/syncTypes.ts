@@ -77,6 +77,10 @@ export type SyncRejectReason =
   | 'code_taken'
   | 'patient_not_found'
   | 'procedure_not_found'
+  /** A booking from an import row that does not exist (or whose import was deleted). */
+  | 'import_row_not_found'
+  /** That import row already has its booking. */
+  | 'import_row_used'
   | StatusChangeError
   | BookingError;
 

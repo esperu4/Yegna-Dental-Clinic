@@ -42,6 +42,9 @@ beforeEach(async () => {
 });
 
 /** Sends one update to the bot; returns the Bot API calls it made (replies, callback answers). */
+/** Imports the bot asked to read (instead of fetching photos from Telegram). */
+const readsRequested: string[] = [];
+
 async function botReceives(update: object, now = Date.now()) {
   const calls: { method: string; payload: Record<string, unknown> }[] = [];
   const answer: Transformer = async (_prev, method, payload) => {
@@ -54,7 +57,11 @@ async function botReceives(update: object, now = Date.now()) {
     };
   };
   const meter = meterD1(env.DB);
-  await teamBot(env, getDb(meter.d1), meter, { apiTransformer: answer, now }).handleUpdate(update as never);
+  await teamBot(env, getDb(meter.d1), meter, {
+    apiTransformer: answer,
+    now,
+    readImport: async (id) => void readsRequested.push(id),
+  }).handleUpdate(update as never);
   return calls;
 }
 
@@ -228,6 +235,54 @@ describe('team bot: linking (PRD §13)', () => {
     const res = await plain('POST', '/me/telegram/link', { token: doctor.token });
     expect(res.status).toBe(503);
     expect(res.json.error).toBe('not_configured');
+  });
+});
+
+describe('team bot: photos become imports (PRD §12, §13)', () => {
+  const photo = (chatId: number, fileId = 'ph-big') => ({
+    update_id: updateId++,
+    message: {
+      message_id: updateId,
+      date: 0,
+      chat: privateChat(chatId),
+      from: person(chatId),
+      photo: [
+        { file_id: 'ph-small', file_unique_id: 's', width: 90, height: 60 },
+        { file_id: fileId, file_unique_id: 'b', width: 1280, height: 960 },
+      ],
+    },
+  });
+
+  it('stores the largest photo’s file id, says it is reading, and reads it in the background', async () => {
+    await link(staff, STAFF_CHAT);
+    readsRequested.length = 0;
+    const calls = await botReceives(photo(STAFF_CHAT));
+    expect(replies(calls)).toEqual(['Got it, reading…']);
+    const row = await env.DB.prepare('SELECT id, telegram_file_id, uploaded_by, status FROM imports').first<
+      Record<string, string>
+    >();
+    expect(row).toMatchObject({ telegram_file_id: 'ph-big', uploaded_by: staff.user.id, status: 'queued' });
+    expect(readsRequested).toEqual([row!.id]);
+  });
+
+  it('takes an image sent as a file, ignores other files, and refuses strangers', async () => {
+    await link(staff, STAFF_CHAT);
+    const doc = (mime: string) => ({
+      update_id: updateId++,
+      message: {
+        message_id: updateId,
+        date: 0,
+        chat: privateChat(STAFF_CHAT),
+        from: person(STAFF_CHAT),
+        document: { file_id: `doc-${mime}`, file_unique_id: 'd', mime_type: mime },
+      },
+    });
+    expect(replies(await botReceives(doc('image/jpeg')))).toEqual(['Got it, reading…']);
+    // A PDF is not a photo: the usual help instead.
+    expect(replies(await botReceives(doc('application/pdf')))[0]).toContain('/today');
+    expect(replies(await botReceives(photo(8888)))[0]).toContain('only for the Yegna');
+    const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM imports').first<{ n: number }>();
+    expect(n!.n).toBe(1);
   });
 });
 

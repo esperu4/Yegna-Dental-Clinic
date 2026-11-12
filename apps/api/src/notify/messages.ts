@@ -184,6 +184,63 @@ export function movableHolidayReminder(r: Recipient, pwaUrl: string): OutgoingMe
   };
 }
 
+/** Imports (PRD §12, §13 "Import read / failed"). Counts only: the rows are reviewed in the app. */
+export const importReading = (r: Recipient) => say(r, 'ደርሷል፤ እያነበብኩ ነው…', 'Got it, reading…');
+export const importSendAsPhoto = (r: Recipient) =>
+  say(
+    r,
+    'ይህን ፋይል ማንበብ አልችልም። እባክዎ እንደ ፎቶ ይላኩት (JPEG/PNG፣ ከ5 ሜባ በታች)።',
+    'I can’t read this file. Please send it as a photo (JPEG/PNG, under 5 MB).',
+  );
+export const importLimit = (r: Recipient) =>
+  say(
+    r,
+    'ለዛሬ የሚፈቀደው የወረቀት ብዛት ደርሷል። ነገ እንደገና ይሞክሩ ወይም መግቢያዎቹን በመተግበሪያው ያስገቡ።',
+    'Today’s limit of sheets is reached. Try again tomorrow, or enter the rows in the app.',
+  );
+
+export function importRead(r: Recipient, read: number, unreadable: number, url: string): OutgoingMessage {
+  const counts =
+    unreadable === 0
+      ? say(r, `${read} መግቢያዎች ተነበዋል።`, `${read} entries read.`)
+      : say(
+          r,
+          `${read} መግቢያዎች ተነበዋል፤ ${unreadable} አልተነበቡም።`,
+          `${read} entries read, ${unreadable} unreadable.`,
+        );
+  return { text: counts, buttons: [[openApp(r, url, 'በመተግበሪያው ይፈትሹ', 'Review in app')]] };
+}
+
+export function importFailed(r: Recipient, url: string): OutgoingMessage {
+  return {
+    text: say(
+      r,
+      'ይህን ወረቀት ማንበብ አልተቻለም። መግቢያዎቹን በመተግበሪያው ያስገቡ።',
+      'Couldn’t read this sheet. Enter the rows in the app.',
+    ),
+    buttons: [[openApp(r, url, 'መተግበሪያውን ክፈት', 'Open the app')]],
+  };
+}
+
+/**
+ * PRD §12 step 7 (Doctor): rows skipped as duplicates, each with the booking already in the app,
+ * e.g. "Abebe K. Thu 4:00 ET: already booked at 4:00 ET by Hana".
+ */
+export function skippedDuplicates(
+  r: Recipient,
+  items: { name: string; startAt: number; existingAt: number; existingBy: string | null }[],
+): string {
+  const lines = items.map((i) => {
+    const when = `${dateOf(r, utcToLocal(i.startAt).date)} ${timeOf(r, utcToLocal(i.startAt).minutes)}`;
+    const existing = timeOf(r, utcToLocal(i.existingAt).minutes);
+    const by = i.existingBy ? say(r, ` (${i.existingBy})`, ` by ${i.existingBy}`) : '';
+    return `${i.name} ${when}: ${say(r, `አስቀድሞ በ${existing} ተይዟል${by}`, `already booked at ${existing}${by}`)}`;
+  });
+  return [say(r, 'ከወረቀቱ የተዘለሉ (ተደጋጋሚ)፦', 'Skipped from the sheet (duplicates):'), ...bullets(r, lines)].join(
+    '\n',
+  );
+}
+
 /** `/today` or `/tomorrow` (PRD §13): a read-only text schedule. */
 export function daySchedule(
   r: Recipient,

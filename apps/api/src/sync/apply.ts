@@ -11,7 +11,7 @@
  * per-invocation limit.
  */
 import { type SQL, and, count, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
-import { bookings, patients, procedures, syncOps, syncSeq } from '@yegna/db';
+import { bookings, importRows, imports, patients, procedures, syncOps, syncSeq } from '@yegna/db';
 import {
   type CallOutcome,
   type OpResult,
@@ -206,6 +206,10 @@ interface Reads {
   bookingPatientLive: boolean;
   /** Clinic-hours rows for `hoursFor`, read in the same batch when the time was known up front. */
   hours: { startAt: number; durationMin: number; rows: unknown[] } | null;
+  /** For a booking from an import row (PRD §12): the row exists (import not deleted)… */
+  importRowLive: boolean;
+  /** …and already has its booking. */
+  importRowUsed: boolean;
 }
 
 /** Everything an op's decision needs, in one batch (one query against the D1 limit). */
@@ -217,6 +221,8 @@ async function readContext(db: Db, op: SyncOp, fields: Row): Promise<Reads> {
   let patientAt = -1;
   let procedureAt = -1;
   let bookingPatientAt = -1;
+  let importRowAt = -1;
+  let importRowUsedAt = -1;
   let hoursFor: { startAt: number; durationMin: number } | null = null;
   if (op.entity === 'bookings') {
     if (typeof fields.patientId === 'string') {
@@ -235,6 +241,26 @@ async function readContext(db: Db, op: SyncOp, fields: Row): Promise<Reads> {
             .where(and(eq(bookings.id, op.entityId), isNull(patients.deletedAt))),
         ) - 1;
     }
+    if (op.kind === 'create' && typeof fields.importRowId === 'string') {
+      importRowAt =
+        queries.push(
+          db
+            .select({ id: importRows.id })
+            .from(importRows)
+            .innerJoin(imports, eq(imports.id, importRows.importId))
+            .where(
+              and(
+                eq(importRows.id, fields.importRowId),
+                isNull(importRows.deletedAt),
+                isNull(imports.deletedAt),
+              ),
+            ),
+        ) - 1;
+      importRowUsedAt =
+        queries.push(
+          db.select({ id: bookings.id }).from(bookings).where(eq(bookings.importRowId, fields.importRowId)),
+        ) - 1;
+    }
     if (typeof fields.startAt === 'number' && typeof fields.durationMin === 'number') {
       hoursFor = { startAt: fields.startAt, durationMin: fields.durationMin };
       queries.push(...hoursQueries(db, hoursFor.startAt, hoursFor.durationMin));
@@ -248,6 +274,8 @@ async function readContext(db: Db, op: SyncOp, fields: Row): Promise<Reads> {
     procedureLive: procedureAt >= 0 && results[procedureAt]!.length > 0,
     bookingPatientLive: bookingPatientAt >= 0 && results[bookingPatientAt]!.length > 0,
     hours: hoursFor ? { ...hoursFor, rows: results.slice(results.length - 4) } : null,
+    importRowLive: importRowAt >= 0 && results[importRowAt]!.length > 0,
+    importRowUsed: importRowUsedAt >= 0 && results[importRowUsedAt]!.length > 0,
   };
 }
 
@@ -257,6 +285,17 @@ function liveQuery(db: Db, entity: 'patients' | 'procedures', id: string) {
     .select({ id: table.id })
     .from(table)
     .where(and(eq(table.id, id), isNull(table.deletedAt)));
+}
+
+/**
+ * For a booking from an import row: what the decision read must still hold when it is written
+ * (the row exists and has no booking yet). If another phone booked it meanwhile, nothing lands,
+ * and the retry re-reads and refuses with `import_row_used` (PRD §12, ADR 0010).
+ */
+function importRowStillFree(importRowId: string) {
+  return sql` AND NOT EXISTS (SELECT 1 FROM bookings WHERE import_row_id = ${importRowId})
+    AND EXISTS (SELECT 1 FROM import_rows r JOIN imports i ON i.id = r.import_id
+      WHERE r.id = ${importRowId} AND r.deleted_at IS NULL AND i.deleted_at IS NULL)`;
 }
 
 /** Every entity except bookings: plain create / update / soft delete, last writer wins. */
@@ -375,6 +414,9 @@ async function decideBooking(
   if (op.kind === 'create') {
     if (current) return reject('exists');
     if (!reads.patientLive) return reject('patient_not_found');
+    const importRowId = (fields.importRowId as string | undefined) ?? null;
+    if (importRowId && !reads.importRowLive) return reject('import_row_not_found');
+    if (importRowId && reads.importRowUsed) return reject('import_row_used');
     const startAt = fields.startAt as number;
     const durationMin = fields.durationMin as number;
     // Outside the clinic's hours as they are now (they changed after the device decided):
@@ -394,12 +436,12 @@ async function decideBooking(
       statements: [
         // Written only if what the decision read is still true (see bookingDependenciesUnchanged).
         sql`INSERT INTO bookings (id, patient_id, procedure_id, start_at, duration_min, note, status,
-              approved_by, approved_at, source, created_by, version, updated_at, updated_by)
+              approved_by, approved_at, source, import_row_id, created_by, version, updated_at, updated_by)
             SELECT ${op.entityId}, ${patientId}, ${procedureId ?? null}, ${startAt}, ${durationMin},
               ${(fields.note as string | null | undefined) ?? null}, ${status},
-              ${approved ? userId : null}, ${approved ? now : null}, 'app', ${userId},
-              ${CURRENT_VERSION}, ${now}, ${userId}
-            WHERE ${deps}`,
+              ${approved ? userId : null}, ${approved ? now : null}, ${importRowId ? 'import' : 'app'},
+              ${importRowId}, ${userId}, ${CURRENT_VERSION}, ${now}, ${userId}
+            WHERE ${deps}${importRowId ? importRowStillFree(importRowId) : sql``}`,
         ...(hours ? [] : [clashStatement(op.entityId, startAt, durationMin)]),
       ],
       action: 'create',
@@ -581,7 +623,9 @@ async function commit(
       ? 'phone_taken'
       : message.includes('procedures.code')
         ? 'code_taken'
-        : 'exists';
+        : message.includes('bookings.import_row_id')
+          ? 'import_row_used'
+          : 'exists';
     return storeRejection(ctx, op, reason, fields);
   }
 }

@@ -12,7 +12,8 @@ export type Route =
   | 'hours'
   | 'holidays'
   | 'wizard'
-  | 'print';
+  | 'print'
+  | 'imports';
 const ROUTES: readonly Route[] = [
   'home',
   'calls',
@@ -25,23 +26,34 @@ const ROUTES: readonly Route[] = [
   'holidays',
   'wizard',
   'print',
+  'imports',
 ];
 
-function parse(): Route {
-  const name = location.hash.replace(/^#\/?/, '') as Route;
-  return ROUTES.includes(name) ? name : 'home';
+/** `#/imports/<id>` ⇒ route `imports`, param `<id>` (one optional parameter per route). */
+export function parseHash(hash: string): { route: Route; param: string | null } {
+  const [name = '', param] = hash.replace(/^#\/?/, '').split('/');
+  const known = ROUTES.includes(name as Route);
+  return {
+    route: known ? (name as Route) : 'home',
+    param: known && param ? decodeURIComponent(param) : null,
+  };
 }
 
-export const route = signal<Route>(typeof location === 'undefined' ? 'home' : parse());
+const initial = typeof location === 'undefined' ? parseHash('') : parseHash(location.hash);
+export const route = signal<Route>(initial.route);
+/** The current route's parameter, e.g. an import id. */
+export const routeParam = signal<string | null>(initial.param);
 
 if (typeof window !== 'undefined') {
   window.addEventListener('hashchange', () => {
-    route.value = parse();
+    const next = parseHash(location.hash);
+    route.value = next.route;
+    routeParam.value = next.param;
   });
 }
 
-export function go(to: Route): void {
-  location.hash = to === 'home' ? '' : `/${to}`;
+export function go(to: Route, param?: string): void {
+  location.hash = to === 'home' ? '' : `/${to}${param ? `/${encodeURIComponent(param)}` : ''}`;
 }
 
 export function back(): void {

@@ -6,6 +6,8 @@
 import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt } from 'drizzle-orm';
 import {
   bookings,
+  importRows,
+  imports,
   notificationLog,
   patients,
   procedures,
@@ -305,12 +307,25 @@ export const ONCE_A_DAY_KINDS = ['refusal', 'link_failed'] as const;
 export type OnceADayKind = (typeof ONCE_A_DAY_KINDS)[number];
 
 /**
- * Clears what the bot no longer needs: once-a-day reply records of past days (they only limit
- * refusals to one per chat per day) and link codes past their 10 minutes.
+ * Clears what is no longer needed: imports 30 days after review; once-a-day reply records of past
+ * days (they only limit refusals to one per chat per day) and link codes past their 10 minutes.
  */
+/** Imports are erased this long after they were reviewed or failed (privacy review M3). */
+export const IMPORT_RETENTION_MS = 30 * 86_400_000;
+
 export async function housekeeping(ctx: JobContext) {
   if (!hasBudget(ctx)) return;
+  const expired = and(
+    inArray(imports.status, ['reviewed', 'failed']),
+    lt(imports.updatedAt, ctx.now - IMPORT_RETENTION_MS),
+    isNull(imports.deletedAt),
+  );
   await ctx.db.batch([
+    // Old imports: their rows (names, phones), the reader's output and the photo's file id go.
+    ctx.db
+      .delete(importRows)
+      .where(inArray(importRows.importId, ctx.db.select({ id: imports.id }).from(imports).where(expired))),
+    ctx.db.update(imports).set({ rawResult: null, telegramFileId: '', deletedAt: ctx.now }).where(expired),
     ctx.db
       .delete(notificationLog)
       .where(

@@ -57,6 +57,13 @@
       "when": 1794335087386,
       "tag": "0007_users_telegram_chat_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794501925250,
+      "tag": "0008_import_row_matching",
+      "breakpoints": true
     }
   ]
 }

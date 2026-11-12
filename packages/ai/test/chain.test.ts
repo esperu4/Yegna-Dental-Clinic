@@ -73,6 +73,18 @@ describe('readSchedule (ADR 0009 fallbacks)', () => {
     expect(out.attempts.map((a) => a.outcome)).toEqual(['rate_limited', 'empty', 'http', 'ok']);
   });
 
+  it('never sends a photo to a last-resort reader when no private reader could even try', async () => {
+    const gemini = spy('gemini', 'ok');
+    const out = await readSchedule(
+      { primary: [spy('workers-ai', new ReaderError('not_configured'))], lastResort: [gemini] },
+      input,
+    );
+    expect(out).toEqual({ ok: false, attempts: [{ readerId: 'workers-ai', outcome: 'not_configured' }] });
+    expect(gemini.calls).toBe(0);
+    expect((await readSchedule({ primary: [], lastResort: [gemini] }, input)).ok).toBe(false);
+    expect(gemini.calls).toBe(0);
+  });
+
   it('gives up a reader that takes too long and moves on', async () => {
     const out = await readSchedule(
       { primary: [spy('slow', 'hang'), stubReader(ROWS)], lastResort: [] },

@@ -302,6 +302,42 @@ describe('hourly cron: team jobs (PRD §13, §16)', () => {
     expect(codes.results.map((r) => r.h)).toEqual(['live']);
   });
 
+  it('erases imports 30 days after they were reviewed or failed (privacy review M3)', async () => {
+    const now = at(sunday(), 19);
+    const day = 86_400_000;
+    const imp = (id: string, status: string, updatedAt: number) =>
+      env.DB.prepare(
+        "INSERT INTO imports (id, telegram_file_id, uploaded_by, status, raw_result, created_at, version, updated_at) VALUES (?, 'file', ?, ?, '{}', 0, 0, ?)",
+      ).bind(id, staff.user.id, status, updatedAt);
+    const row = (importId: string) =>
+      env.DB.prepare(
+        "INSERT INTO import_rows (id, import_id, name_text, phone_text, version, updated_at) VALUES (?, ?, 'Abebe', '0911', 0, 0)",
+      ).bind(uuidv7(), importId);
+    const [oldReviewed, oldFailed, recent, oldButOpen] = [uuidv7(), uuidv7(), uuidv7(), uuidv7()];
+    await env.DB.batch([
+      imp(oldReviewed, 'reviewed', now - 31 * day),
+      imp(oldFailed, 'failed', now - 31 * day),
+      imp(recent, 'reviewed', now - 2 * day),
+      imp(oldButOpen, 'read', now - 31 * day),
+      row(oldReviewed),
+      row(recent),
+      row(oldButOpen),
+    ]);
+
+    await runHourly(env, now, new FakeTelegram());
+
+    const imports = await env.DB.prepare(
+      'SELECT id, telegram_file_id AS f, raw_result AS raw, deleted_at AS gone FROM imports',
+    ).all<{ id: string; f: string; raw: string | null; gone: number | null }>();
+    const by = (id: string) => imports.results.find((i) => i.id === id)!;
+    for (const id of [oldReviewed, oldFailed]) expect(by(id)).toMatchObject({ f: '', raw: null, gone: now });
+    // Recent ones, and ones still waiting for review, are kept.
+    expect(by(recent)).toMatchObject({ f: 'file', gone: null });
+    expect(by(oldButOpen)).toMatchObject({ f: 'file', gone: null });
+    const rows = await env.DB.prepare('SELECT import_id FROM import_rows').all<{ import_id: string }>();
+    expect(rows.results.map((r) => r.import_id).sort()).toEqual([recent, oldButOpen].sort());
+  });
+
   it('does nothing without a bot token', async () => {
     const withoutToken = (): Env => {
       const { TEAM_BOT_TOKEN: _, ...rest } = env;

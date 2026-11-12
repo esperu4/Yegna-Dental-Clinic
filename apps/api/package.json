@@ -15,6 +15,7 @@
     "deploy:staging": "wrangler deploy --env staging"
   },
   "dependencies": {
+    "@yegna/ai": "workspace:*",
     "@yegna/db": "workspace:*",
     "@yegna/shared": "workspace:*",
     "@yegna/time": "workspace:*",

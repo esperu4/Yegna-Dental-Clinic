@@ -5,6 +5,7 @@ import { meterD1 } from './lib/queryMeter.ts';
 import type { AppEnv } from './lib/http.ts';
 import { admin } from './routes/admin.ts';
 import { auth } from './routes/auth.ts';
+import { importRoutes } from './routes/imports.ts';
 import { sync } from './routes/sync.ts';
 import { telegram } from './routes/telegram.ts';
 import { runHourly } from './jobs/dispatch.ts';
@@ -48,6 +49,7 @@ app.route('/', auth);
 app.route('/admin', admin);
 app.route('/sync', sync);
 app.route('/', telegram);
+app.route('/', importRoutes);
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 app.onError((err, c) => {

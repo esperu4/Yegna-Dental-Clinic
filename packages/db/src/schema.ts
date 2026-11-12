@@ -201,6 +201,10 @@ export const bookings = sqliteTable(
     index('bookings_patient_start_idx').on(t.patientId, t.startAt),
     index('bookings_version_idx').on(t.version),
     index('bookings_status_start_idx').on(t.status, t.startAt),
+    // One booking per confirmed import row (PRD §12).
+    uniqueIndex('bookings_import_row_uq')
+      .on(t.importRowId)
+      .where(sql`${t.importRowId} IS NOT NULL`),
     check('bookings_duration_grid', sql`${t.durationMin} > 0 AND ${t.durationMin} % 15 = 0`),
   ],
 );
@@ -298,7 +302,12 @@ export const imports = sqliteTable(
     createdAt: integer('created_at').notNull(),
     ...syncable,
   },
-  (t) => [index('imports_status_idx').on(t.status), index('imports_version_idx').on(t.version)],
+  (t) => [
+    index('imports_status_idx').on(t.status),
+    index('imports_version_idx').on(t.version),
+    // Daily upload caps count one user's imports since midnight.
+    index('imports_uploader_created_idx').on(t.uploadedBy, t.createdAt),
+  ],
 );
 
 export const importRows = sqliteTable(
@@ -308,13 +317,25 @@ export const importRows = sqliteTable(
     importId: text('import_id')
       .notNull()
       .references(() => imports.id),
+    /** The day as read: weekday column (F, C) or day of the Ethiopian month (O). */
+    dayText: text('day_text'),
     timeText: text('time_text'),
     nameText: text('name_text'),
     phoneText: text('phone_text'),
     codeText: text('code_text'),
+    /** The reader's confidence, 0–100. */
     confidence: integer('confidence'),
     match: text('match', { enum: IMPORT_ROW_MATCHES }),
     decision: text('decision', { enum: IMPORT_ROW_DECISIONS }),
+    /** Start (UTC ms) from the sheet's dates and the ET time read; null when unreadable. */
+    startAt: integer('start_at'),
+    /** The existing patient matched by phone (or by name on template O). */
+    patientId: text('patient_id'),
+    /** For `duplicate`: the booking already in the app. */
+    duplicateOfId: text('duplicate_of_id'),
+    /** A person must check it (name-only match on O, or a time moved to the 15-minute grid). */
+    needsCheck: integer('needs_check', { mode: 'boolean' }).notNull().default(false),
+    /** The booking created on confirmation. */
     bookingId: text('booking_id'),
     ...syncable,
   },

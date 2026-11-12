@@ -13,18 +13,28 @@ import { and, eq, isNull, like } from 'drizzle-orm';
 import { Api, Bot, type Context as BotContext, type Transformer } from 'grammy';
 import type { UserFromGetMe } from 'grammy/types';
 import { Hono } from 'hono';
-import { bookings, notificationLog, patients, telegramLinkCodes, users } from '@yegna/db';
+import { bookings, imports, notificationLog, patients, telegramLinkCodes, users } from '@yegna/db';
 import { type SessionUser, type SyncOp, uuidv7 } from '@yegna/shared';
 import { addDays, localDateOf, localToUtc } from '@yegna/time';
 import { auditInsert } from '../lib/audit.ts';
 import { randomHex, safeEqual, sha256Hex } from '../lib/crypto.ts';
-import type { Db } from '../lib/db.ts';
 import { type AppEnv, fail } from '../lib/http.ts';
 import type { QueryMeter } from '../lib/queryMeter.ts';
 import { requireDevice, requireDoctor } from '../lib/session.ts';
 import { type OnceADayKind, bookingLinesBetween } from '../jobs/team.ts';
-import { type Recipient, botText, daySchedule } from '../notify/messages.ts';
-import { sendErrorKind } from '../notify/notifier.ts';
+import {
+  type Recipient,
+  botText,
+  daySchedule,
+  importLimit,
+  importReading,
+  importSendAsPhoto,
+} from '../notify/messages.ts';
+import { IMPORTS_PER_USER_PER_DAY, importsToday } from '../imports/limits.ts';
+import { MAX_PHOTO_BYTES, PHOTO_TYPES } from '../imports/photo.ts';
+import { readAndReport } from '../imports/report.ts';
+import { CURRENT_VERSION, type Db, withVersion } from '../lib/db.ts';
+import { TELEGRAM_CLIENT, sendErrorKind } from '../notify/notifier.ts';
 import { MAX_QUERIES_PER_OP, applyOp } from '../sync/apply.ts';
 
 export const LINK_CODE_TTL_MS = 10 * 60_000;
@@ -84,7 +94,7 @@ telegram.delete('/me/telegram', requireDevice, async (c) => {
  */
 telegram.post('/admin/telegram/connect', requireDevice, requireDoctor, async (c) => {
   if (!botConfigured(c.env)) return fail(c, 503, 'not_configured');
-  const api = new Api(c.env.TEAM_BOT_TOKEN!);
+  const api = new Api(c.env.TEAM_BOT_TOKEN!, TELEGRAM_CLIENT);
   try {
     await api.setWebhook(`${new URL(c.req.url).origin}/telegram/team`, {
       secret_token: c.env.TEAM_BOT_WEBHOOK_SECRET!,
@@ -120,7 +130,9 @@ telegram.post('/telegram/team', async (c) => {
     return fail(c, 400, 'bad_request');
   }
   try {
-    await teamBot(c.env, c.get('db'), c.get('meter')).handleUpdate(update as never);
+    await teamBot(c.env, c.get('db'), c.get('meter'), {
+      waitUntil: (work) => c.executionCtx.waitUntil(work),
+    }).handleUpdate(update as never);
   } catch (err) {
     // Error type only (PRD §18). Telegram retries non-2xx webhooks; a handler error must not
     // make it resend the update.
@@ -133,6 +145,10 @@ telegram.post('/telegram/team', async (c) => {
 export interface BotOptions {
   apiTransformer?: Transformer;
   now?: number;
+  /** Runs work after the webhook has answered (reading an import). */
+  waitUntil?: (work: Promise<unknown>) => void;
+  /** Reads a new import (tests replace it; the default fetches the photo and runs the readers). */
+  readImport?: (importId: string) => Promise<unknown>;
 }
 
 type Member = Recipient & { user: SessionUser };
@@ -152,7 +168,7 @@ export function teamBot(env: Env, db: Db, meter: QueryMeter, options: BotOptions
     can_connect_to_business: false,
     has_main_web_app: false,
   } as UserFromGetMe;
-  const bot = new Bot(token, { botInfo });
+  const bot = new Bot(token, { botInfo, client: TELEGRAM_CLIENT });
   if (options.apiTransformer) bot.api.config.use(options.apiTransformer);
   const now = () => options.now ?? Date.now();
 
@@ -212,6 +228,57 @@ export function teamBot(env: Env, db: Db, meter: QueryMeter, options: BotOptions
   });
 
   chats.on('callback_query:data', (ctx) => ctx.answerCallbackQuery({ text: botText.refused }));
+
+  // A photo of a paper sheet ⇒ an import (PRD §12, §13). Also an image sent as a file (no
+  // compression), which reads better. We keep only Telegram's file id.
+  chats.on(['message:photo', 'message:document'], async (ctx, next) => {
+    const doc = ctx.message.document;
+    const isImageFile = !!doc?.mime_type?.startsWith('image/');
+    if (!ctx.message.photo && !isImageFile) return next();
+    const member = await memberFor(ctx);
+    if (!member) return refuse(ctx);
+    // Only what the private readers can take (privacy review M1): otherwise ask for a photo.
+    const fileId =
+      ctx.message.photo?.at(-1)?.file_id ??
+      (doc &&
+      (PHOTO_TYPES as readonly string[]).includes(doc.mime_type ?? '') &&
+      (doc.file_size ?? 0) <= MAX_PHOTO_BYTES
+        ? doc.file_id
+        : undefined);
+    if (!fileId) return void (await ctx.reply(importSendAsPhoto(member)));
+    if ((await importsToday(db, member.user.id, now())) >= IMPORTS_PER_USER_PER_DAY) {
+      return void (await ctx.reply(importLimit(member)));
+    }
+    const id = uuidv7();
+    await withVersion(
+      db,
+      db.insert(imports).values({
+        id,
+        telegramFileId: fileId,
+        uploadedBy: member.user.id,
+        status: 'queued',
+        createdAt: now(),
+        version: CURRENT_VERSION,
+        updatedAt: 0,
+        updatedBy: member.user.id,
+      }),
+      auditInsert(
+        db,
+        { deviceId: BOT_DEVICE_ID, user: member.user },
+        'imports',
+        id,
+        'create',
+        { source: 'bot' },
+        now(),
+      ),
+    );
+    await ctx.reply(importReading(member));
+    const work = (options.readImport ?? ((importId) => readAndReport(env, db, importId)))(id).catch(
+      () => undefined,
+    );
+    if (options.waitUntil) options.waitUntil(work);
+    else await work;
+  });
 
   // Any other message: help for the team, the refusal for everyone else (PRD §13).
   chats.on('message', async (ctx) => {
