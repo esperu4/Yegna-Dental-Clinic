@@ -72,8 +72,12 @@ const ERROR_KEYS: Partial<Record<ApiErrorCode | 'offline' | 'server_error', Mess
   name_taken: 'error.nameTaken',
 };
 
+/** An error whose message is already translated (a screen explained it better). */
+export class ShownError extends Error {}
+
 /** A translated message for any error thrown by the API client. */
 export function errorText(err: unknown): string {
+  if (err instanceof ShownError) return err.message;
   if (err instanceof ApiError) {
     if (err.code === 'locked')
       return t('error.locked', { minutes: Math.ceil((err.retryAfterMs ?? 60_000) / 60_000) });

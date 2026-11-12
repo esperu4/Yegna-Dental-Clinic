@@ -122,6 +122,9 @@ function WorkLinks() {
       <button type="button" class="secondary" onClick={() => go('print')}>
         {t('print.nav')}
       </button>
+      <button type="button" class="secondary" onClick={() => go('imports')}>
+        {t('imports.nav')}
+      </button>
     </nav>
   );
 }

@@ -867,3 +867,63 @@ a.button {
     break-after: auto;
   }
 }
+
+/* Imports review (PRD §8 item 10) */
+.import-open {
+  text-align: start;
+  text-decoration: none;
+  color: var(--fg);
+  padding: 0;
+}
+.import-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.import-rows .card.has-error {
+  border-color: var(--danger);
+}
+.import-take {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.import-take input {
+  width: 24px;
+  height: 24px;
+}
+.import-pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 0;
+}
+.import-pair > * {
+  flex: 1;
+  min-width: 9rem;
+}
+.import-warn {
+  font-weight: 600;
+}
+.sheet-photo {
+  margin: 0;
+}
+.sheet-photo-frame {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.sheet-photo-frame img {
+  display: block;
+  width: 100%;
+  cursor: zoom-in;
+}
+.sheet-photo-frame.zoomed img {
+  width: 250%;
+  max-width: none;
+  cursor: zoom-out;
+}

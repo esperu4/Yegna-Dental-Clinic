@@ -32,3 +32,14 @@ PRD §12 describes the flow: a photo of a paper sheet is read by AI, matched, re
 - **Daily caps** (`apps/api/src/imports/limits.ts`): 30 new imports per person per clinic day, and 20 last-resort (Gemini free) reads per clinic day for the whole clinic. Past the cap, uploads get `locked` and the last resort is skipped (manual entry still works).
 - **Uploads** are JPEG, PNG or WebP only, at most 5 MB, with the size declared up front (`411` otherwise) and checked against the file's first bytes.
 - **Retention:** imports and their rows are deleted 30 days after review by the daily housekeeping job. Bookings made from them stay.
+
+## Review screen (added after the second sync and privacy reviews, 2026-11-12)
+
+- **Confirming is atomic.** The confirm batch moves the import out of `read` with a guarded update; the row decisions and the audit row are written only if that update landed. Of two phones confirming at once, one gets `409 conflict`. On a conflict the phone reloads the sheet and, if it is now reviewed, books only the rows still open there.
+- **The phone syncs before it plans**, so a patient added on another phone a moment ago is matched rather than refused with `phone_taken`.
+- **A sheet's patients and bookings are queued all or none** (`sync.writeMany`), in order: each new patient before its bookings. If the patient is refused, its bookings are refused too (`patient_not_found`) and the phone removes the provisional rows, even when the answers come in different rounds. A provisional patient is removed only on a recorded refusal of its create, never because one of its bookings was refused.
+- **Refused rows come back.** A reviewed sheet offers its accepted rows that have no booking and none waiting in this phone's outbox. The list shows "N not booked yet" (`toBook`), and a refused import booking's notice links to the sheet photos.
+- **The reviewer's edits survive background syncs**: drafts are kept per row and only rows newly open start from what was read. While the screen stays open, a sent row that comes back refused keeps the reviewer's corrections.
+- **Route ids**: the review screen only opens a UUIDv7 import id from the URL.
+
+Known follow-ups (not blocking M4): a second phone may be offered rows the first has queued but not yet sent (the unique index keeps it to one booking; whichever arrives first wins); skipping a still-open row on a reviewed sheet is not recorded (it keeps being offered); the PWA has no Content-Security-Policy yet (rendering relies on Preact's escaping); the randomized sync simulation does not yet send `writeMany` batches.

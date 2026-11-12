@@ -31,6 +31,13 @@ app.use('*', (c, next) =>
   })(c, next),
 );
 
+// Answers hold patient names and phones: no browser or proxy may keep them (a revoked phone's
+// wipe clears Dexie but not the HTTP cache). Routes that set their own header keep it.
+app.use('*', async (c, next) => {
+  await next();
+  if (!c.res.headers.has('Cache-Control')) c.res.headers.set('Cache-Control', 'no-store');
+});
+
 app.use('*', async (c, next) => {
   // Every query is counted against the per-invocation D1 limit (see lib/queryMeter.ts).
   const meter = meterD1(c.env.DB);

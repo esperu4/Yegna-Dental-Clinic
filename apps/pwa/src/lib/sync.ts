@@ -26,6 +26,14 @@ import { showSyncNotification } from './syncNotification.ts';
 import { SummaryBuilder, type SyncSummary, somethingHappened } from './syncStatus.ts';
 import { type Session, session as defaultSession } from './session.ts';
 
+/** One change for `writeMany`. */
+export interface WriteChange {
+  entity: WriteEntity;
+  kind: OpKind;
+  fields: Record<string, unknown>;
+  entityId?: string;
+}
+
 export const AUTO_SYNC_EVERY_MS = 30_000;
 /** Upper bound on request rounds in one `syncNow` (outbox pages + pull pages). */
 const MAX_ROUNDS = 50;
@@ -153,29 +161,41 @@ export function createSync(
     entity: WriteEntity,
     kind: OpKind,
     fields: Record<string, unknown>,
-    entityId: string = uuidv7(now()),
+    entityId?: string,
   ): Promise<SyncOp> {
+    return (await writeMany([{ entity, kind, fields, ...(entityId ? { entityId } : {}) }]))[0]!;
+  }
+
+  /**
+   * Several changes, all or none: one transaction for the working copy and the outbox, then one
+   * sync (an imported sheet's patients and bookings, PRD §12). Ops keep the given order.
+   */
+  async function writeMany(changes: readonly WriteChange[]): Promise<SyncOp[]> {
     const signedIn = auth.current.value;
     if (!signedIn) throw new Error('not signed in');
-    const op: SyncOp = {
+    if (!changes.length) return [];
+    const ops: SyncOp[] = changes.map((c) => ({
       opId: uuidv7(now()),
-      entity,
-      entityId,
-      kind,
-      fields,
+      entity: c.entity,
+      entityId: c.entityId ?? uuidv7(now()),
+      kind: c.kind,
+      fields: c.fields,
       baseVersion: null,
       at: now(),
       userId: signedIn.user.id,
-    };
-    const table = store.entity(entity);
-    await store.transaction('rw', table, store.outbox, async () => {
-      const row = await table.get(entityId);
-      // Deleted on the server: there is nothing left to change (the UI never offers it).
-      if (kind !== 'create' && row?.deletedAt != null) throw new Error('row deleted');
-      // Version 0 = created here and not yet on the server: there is no base to compare with.
-      op.baseVersion = kind === 'create' || !row?.version ? null : row.version;
-      await table.put(applyLocally(row, op, signedIn.user.role) as never);
-      await store.outbox.add({ op });
+    }));
+    const tables = [...new Set(ops.map((op) => store.entity(op.entity)))];
+    await store.transaction('rw', [...tables, store.outbox], async () => {
+      for (const op of ops) {
+        const table = store.entity(op.entity);
+        const row = await table.get(op.entityId);
+        // Deleted on the server: there is nothing left to change (the UI never offers it).
+        if (op.kind !== 'create' && row?.deletedAt != null) throw new Error('row deleted');
+        // Version 0 = created here and not yet on the server: there is no base to compare with.
+        op.baseVersion = op.kind === 'create' || !row?.version ? null : row.version;
+        await table.put(applyLocally(row, op, signedIn.user.role) as never);
+        await store.outbox.add({ op });
+      }
     });
     await refresh();
     // Ask for a Background Sync now (PRD §7.2 step 3): if the app is closed or killed before its own
@@ -183,7 +203,7 @@ export function createSync(
     // worker finds the outbox empty and does nothing.
     requestBackgroundSync();
     void syncNow();
-    return op;
+    return ops;
   }
 
   /** Send the outbox and pull changes. Concurrent calls share one run (and trigger one more). */
@@ -283,6 +303,17 @@ export function createSync(
       const stillPending = await store.outbox.orderBy('seq').toArray();
       const pendingFor = (entity: PullEntity, key: string) =>
         stillPending.filter((e) => e.op.entity === entity && e.op.entityId === key);
+      // Only for deciding whether a refused patient's local row may go: it stays while its own ops
+      // or bookings pointing at it still wait (an imported sheet's batch can be split across
+      // requests). Never used to replay ops onto rows.
+      const patientStillWanted = (id: string) =>
+        stillPending.some(
+          (e) =>
+            (e.op.entity === 'patients' && e.op.entityId === id) ||
+            (e.op.entity === 'bookings' && e.op.fields.patientId === id),
+        );
+      const stillWanted = (entity: PullEntity, key: string) =>
+        entity === 'patients' ? patientStillWanted(key) : pendingFor(entity, key).length > 0;
       const seenUpTo =
         (await store.getMeta<number>(SEEN_KEY)) ?? (await store.getMeta<number>(CURSOR_KEY)) ?? 0;
       const windowStart = bookingWindowStart(now());
@@ -305,8 +336,19 @@ export function createSync(
         if (result.outcome !== 'rejected') continue;
         // A refused create has no server row: remove the optimistic one (unless more is queued for it).
         const hasServerRow = (res.changes[op.entity] ?? []).some((r) => rowKey(op.entity, r) === op.entityId);
-        if (!hasServerRow && pendingFor(op.entity, op.entityId).length === 0) {
+        if (!hasServerRow && !stillWanted(op.entity, op.entityId)) {
           await store.entity(op.entity).delete(op.entityId);
+        }
+        // The last waiting booking of a patient whose create was refused in an earlier round: the
+        // patient was kept for it; remove it now. Only on a recorded refusal: a version-0 row may
+        // also be a create the server applied whose row arrives on a later pull page.
+        const patientId = op.entity === 'bookings' ? op.fields.patientId : undefined;
+        if (typeof patientId === 'string' && !patientStillWanted(patientId)) {
+          const patient = await store.patients.get(patientId);
+          const refused = await store.notices
+            .filter((n) => n.kind === 'rejected' && n.entity === 'patients' && n.entityId === patientId)
+            .count();
+          if (patient?.version === 0 && refused > 0) await store.patients.delete(patientId);
         }
       }
 
@@ -450,6 +492,7 @@ export function createSync(
     pendingCount,
     notices,
     write,
+    writeMany,
     syncNow,
     startAuto,
     dismissNotice,

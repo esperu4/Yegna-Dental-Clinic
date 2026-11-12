@@ -53,6 +53,9 @@ importRoutes.get('/imports', async (c) => {
       uploadedBy: users.name,
       rows: sql<number>`(SELECT COUNT(*) FROM import_rows r WHERE r.import_id = ${imports.id})`,
       toCheck: sql<number>`(SELECT COUNT(*) FROM import_rows r WHERE r.import_id = ${imports.id} AND (r.needs_check = 1 OR r.match = 'unreadable'))`,
+      // Accepted rows with no booking yet: refused by /sync, or still queued on a phone. The
+      // list points the reviewer back to them, so a refused paper booking is never lost silently.
+      toBook: sql<number>`(SELECT COUNT(*) FROM import_rows r WHERE r.import_id = ${imports.id} AND r.deleted_at IS NULL AND r.decision = 'accept' AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.import_row_id = r.id))`,
     })
     .from(imports)
     .innerJoin(users, eq(users.id, imports.uploadedBy))
@@ -235,13 +238,11 @@ importRoutes.post('/imports/:id/confirm', async (c) => {
   const session = c.get('session');
   const id = c.req.param('id');
   const head = await db
-    .select({ status: imports.status })
+    .select({ id: imports.id })
     .from(imports)
     .where(and(eq(imports.id, id), isNull(imports.deletedAt)))
     .get();
   if (!head) return fail(c, 404, 'not_found');
-  // Once: a reviewed import is not reviewed (nor reported to the Doctor) again.
-  if (head.status !== 'read') return fail(c, 409, 'conflict');
   const known = await db
     .select({
       id: importRows.id,
@@ -257,8 +258,16 @@ importRoutes.post('/imports/:id/confirm', async (c) => {
   if (body.rows.some((r) => !byId.has(r.id))) return fail(c, 400, 'bad_request');
 
   const now = Date.now();
-  await withVersion(
+  // Once: only the batch that moves the import out of 'read' writes its decisions and audit row
+  // (and reports to the Doctor). A sheet not yet read, already reviewed, or reviewed by another
+  // phone a moment ago gets a conflict and queues nothing.
+  const claimed = sql`EXISTS (SELECT 1 FROM imports WHERE id = ${id} AND version = ${CURRENT_VERSION})`;
+  const [claim] = await withVersion(
     db,
+    db
+      .update(imports)
+      .set({ status: 'reviewed', version: CURRENT_VERSION, updatedAt: now, updatedBy: session.user.id })
+      .where(and(eq(imports.id, id), eq(imports.status, 'read'), isNull(imports.deletedAt))),
     ...body.rows.map((r) =>
       db
         .update(importRows)
@@ -268,25 +277,17 @@ importRoutes.post('/imports/:id/confirm', async (c) => {
           updatedAt: now,
           updatedBy: session.user.id,
         })
-        .where(and(eq(importRows.id, r.id), eq(importRows.importId, id))),
+        .where(and(eq(importRows.id, r.id), eq(importRows.importId, id), claimed)),
     ),
-    db
-      .update(imports)
-      .set({ status: 'reviewed', version: CURRENT_VERSION, updatedAt: now, updatedBy: session.user.id })
-      .where(eq(imports.id, id)),
-    auditInsert(
-      db,
-      session,
-      'imports',
-      id,
-      'review',
-      {
-        accepted: body.rows.filter((r) => r.decision === 'accept').length,
-        skipped: body.rows.filter((r) => r.decision === 'skip').length,
-      },
-      now,
-    ),
+    sql`INSERT INTO audit_log (id, entity, entity_id, user_id, device_id, action, diff, at)
+        SELECT ${uuidv7(now)}, 'imports', ${id}, ${session.user.id}, ${session.deviceId}, 'review', ${JSON.stringify(
+          {
+            accepted: body.rows.filter((r) => r.decision === 'accept').length,
+            skipped: body.rows.filter((r) => r.decision === 'skip').length,
+          },
+        )}, ${now} WHERE ${claimed}`,
   );
+  if (claim?.meta.changes !== 1) return fail(c, 409, 'conflict');
 
   // PRD §12 step 7: skipped duplicates are reported to the Doctor, with the existing booking.
   const skipped = body.rows

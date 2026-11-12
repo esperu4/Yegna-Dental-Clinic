@@ -10,6 +10,7 @@ import { type MessageKey, locale, t } from '../i18n/index.ts';
 import { db } from '../lib/db.ts';
 import { formatDate, formatPhone, formatTime } from '../lib/format.ts';
 import { useLive } from '../lib/live.ts';
+import { go } from '../lib/router.ts';
 import { type CardAction, cardActions } from '../lib/schedule.ts';
 import { session } from '../lib/session.ts';
 import { sync } from '../lib/sync.ts';
@@ -163,6 +164,8 @@ const REASON_KEYS: Partial<Record<SyncRejectReason, MessageKey>> = {
   phone_taken: 'notice.reason.phoneTaken',
   code_taken: 'procedures.error.codeTaken',
   call_outdated: 'notice.reason.callOutdated',
+  import_row_used: 'notice.reason.importRowUsed',
+  import_row_not_found: 'notice.reason.importRowGone',
 };
 
 /** Refused changes and clashes (PRD §7.5, §9: "a forbidden op is rejected with a reason shown"). */
@@ -196,6 +199,16 @@ export function NoticeList(props: {
                 reason: t(REASON_KEYS[notice.reason!] ?? 'notice.reason.other'),
               })}
             </button>
+          ) : notice.entity === 'bookings' && notice.fields.importRowId ? (
+            // A row from a sheet photo: its sheet offers it again to book (PRD §12, ADR 0010).
+            <span>
+              {t('notice.importRejected', {
+                reason: t(REASON_KEYS[notice.reason!] ?? 'notice.reason.other'),
+              })}{' '}
+              <button type="button" class="link" onClick={() => go('imports')}>
+                {t('notice.openImports')}
+              </button>
+            </span>
           ) : (
             <span>
               {t('notice.rejected', { reason: t(REASON_KEYS[notice.reason!] ?? 'notice.reason.other') })}

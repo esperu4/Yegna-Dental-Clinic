@@ -303,6 +303,9 @@ describe('import routes (PRD §8 item 10)', () => {
   it('needs a signed-in device', async () => {
     expect((await call('GET', '/imports')).status).toBe(401);
     expect((await call('GET', `/imports/${uuidv7()}`, { token: doctor.token })).status).toBe(404);
+    // Patient lists are never kept in a browser or proxy cache (privacy review M4).
+    const list = await call('GET', '/imports', { token: doctor.token });
+    expect(list.headers.get('Cache-Control')).toBe('no-store');
   });
 
   it('uploads a photo from the app: posted to the uploader’s own chat, read in the background', async () => {
@@ -387,6 +390,13 @@ describe('import routes (PRD §8 item 10)', () => {
     expect(
       (await call('POST', `/imports/${id}/confirm`, { token: doctor.token, body: { rows: [] } })).status,
     ).toBe(409);
+    // Refused by the guarded batch itself: nothing of it was written.
+    const noAudit = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM audit_log WHERE entity = 'imports' AND entity_id = ? AND action = 'review'",
+    )
+      .bind(id)
+      .first<{ n: number }>();
+    expect(noAudit!.n).toBe(0);
     await processImport(env, getDb(env.DB), id, {
       fetch: telegram,
       chain: chainOf({
@@ -434,5 +444,42 @@ describe('import routes (PRD §8 item 10)', () => {
     expect(sent).toEqual([
       expect.stringMatching(/Skipped from the sheet.*Abebe K\..*already booked at 10:00 by Dr\. Selam/),
     ]);
+  });
+
+  it('lets only one of two phones confirming at once review the sheet; lists rows still to book', async () => {
+    const monday = nextMonday();
+    const id = await newImport();
+    await processImport(env, getDb(env.DB), id, {
+      fetch: telegram,
+      chain: chainOf({
+        sheetId: sheetIdFor({ template: 'F', monday }),
+        rows: [
+          { day: 'mon', time: '4:00', name: 'Hana T.', phone: '0922334455', confidence: 1 },
+          { day: 'mon', time: '5:00', name: 'Yonas B.', phone: '0933445566', confidence: 1 },
+        ],
+      }),
+    });
+    const rows = (await call('GET', `/imports/${id}`, { token: doctor.token })).json.rows as { id: string }[];
+    const confirm = (decision: 'accept' | 'skip') =>
+      call('POST', `/imports/${id}/confirm`, {
+        token: doctor.token,
+        body: { rows: rows.map((r) => ({ id: r.id, decision })) },
+      });
+    const results = await Promise.all([confirm('accept'), confirm('skip')]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    const winner = results[0]!.status === 200 ? 'accept' : 'skip';
+    expect((await rowsOf(id)).map((r) => r.decision)).toEqual([winner, winner]);
+    const audits = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM audit_log WHERE entity = 'imports' AND entity_id = ? AND action = 'review'",
+    )
+      .bind(id)
+      .first<{ n: number }>();
+    expect(audits!.n).toBe(1);
+
+    const listed = (await call('GET', '/imports', { token: doctor.token })).json as unknown as {
+      id: string;
+      toBook: number;
+    }[];
+    expect(listed.find((i) => i.id === id)!.toBook).toBe(winner === 'accept' ? 2 : 0);
   });
 });

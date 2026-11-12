@@ -16,6 +16,7 @@ import { Welcome } from './screens/Welcome.tsx';
 import { lazyScreen } from './components/lazy.tsx';
 
 const Print = lazyScreen(() => import('./screens/Print.tsx').then((m) => m.Print));
+const Imports = lazyScreen(() => import('./screens/Imports.tsx').then((m) => m.Imports));
 
 export function App() {
   useEffect(() => {
@@ -78,6 +79,8 @@ export function App() {
       return isDoctor ? <SetupWizard /> : <Home />;
     case 'print':
       return <Print />;
+    case 'imports':
+      return <Imports />;
     default:
       return <Home />;
   }

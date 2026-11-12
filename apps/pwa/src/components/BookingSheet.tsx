@@ -316,7 +316,7 @@ export function BookingSheet(props: { mode: SheetMode; onClose: () => void }) {
 }
 
 /** The default length for a booking without a procedure (settings; 60 min by default, PRD §21 #6). */
-function useUnspecifiedDuration(): number {
+export function useUnspecifiedDuration(): number {
   const [value, setValue] = useState<number | undefined>(undefined);
   useEffect(() => {
     void db.settings

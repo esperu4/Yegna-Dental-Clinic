@@ -17,6 +17,10 @@ export class ApiError extends Error {
 export interface ApiOptions {
   method?: string;
   body?: unknown;
+  /** A raw body (an uploaded photo) instead of JSON. */
+  raw?: Blob;
+  /** Read the answer as a file (a photo) instead of JSON. */
+  as?: 'json' | 'blob';
   token?: string | null;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
@@ -28,6 +32,7 @@ export const REQUEST_TIMEOUT_MS = 30_000;
 export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
+  if (opts.raw) headers['Content-Type'] = opts.raw.type;
   if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? REQUEST_TIMEOUT_MS);
@@ -35,13 +40,24 @@ export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
     let res: Response;
     try {
       res = await (opts.fetchImpl ?? fetch)(`${API_URL}${path}`, {
-        method: opts.method ?? (opts.body === undefined ? 'GET' : 'POST'),
+        method: opts.method ?? (opts.body === undefined && !opts.raw ? 'GET' : 'POST'),
         headers,
         signal: controller.signal,
-        ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+        ...(opts.raw
+          ? { body: opts.raw }
+          : opts.body !== undefined
+            ? { body: JSON.stringify(opts.body) }
+            : {}),
       });
     } catch {
       throw new ApiError(0, 'offline');
+    }
+    if (opts.as === 'blob' && res.ok) {
+      try {
+        return (await res.blob()) as T;
+      } catch {
+        throw new ApiError(0, 'offline');
+      }
     }
     let data: { error?: ApiErrorCode; retryAfterMs?: number };
     try {

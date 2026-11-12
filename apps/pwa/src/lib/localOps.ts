@@ -28,7 +28,8 @@ function createDefaults(op: SyncOp, role: Role): AnyRow {
         callHandledAt: null,
         callHandledBy: null,
         callTriedAt: null,
-        source: 'app',
+        // A confirmed sheet row (PRD §12) is stored by the server with source = import.
+        source: op.fields.importRowId ? 'import' : 'app',
         cancelReason: null,
         clashWithId: null,
         createdBy: op.userId,

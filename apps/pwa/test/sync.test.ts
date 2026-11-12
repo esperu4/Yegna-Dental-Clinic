@@ -32,6 +32,12 @@ class FakeServer {
   answerLimit = Infinity;
   /** Simulates the daily op budget: answer no ops and tell the device to wait an hour. */
   holdOps = false;
+  /** After one request with answers, answer nothing more (a run that stops mid-outbox). */
+  holdAfterFirst = false;
+  /** Fail every request after the first (the connection drops mid-run). */
+  offlineAfterFirst = false;
+  /** Refuse bookings whose patient the server does not hold (as `phone_taken` + its bookings do). */
+  requirePatients = false;
   /** Runs while a request is "in flight", before the response is built. */
   duringRequest: (() => Promise<void>) | null = null;
 
@@ -42,9 +48,8 @@ class FakeServer {
       this.duringRequest = null;
       await hook();
     }
-    const results: OpResult[] = this.holdOps
-      ? []
-      : req.ops.slice(0, this.answerLimit).map((op) => this.apply(op));
+    const hold = this.holdOps || (this.holdAfterFirst && this.requests.length > 1);
+    const results: OpResult[] = hold ? [] : req.ops.slice(0, this.answerLimit).map((op) => this.apply(op));
     const changed = [...this.rows.values()]
       .filter((r) => (r.version as number) > req.cursor)
       .sort((a, b) => (a.version as number) - (b.version as number));
@@ -73,6 +78,13 @@ class FakeServer {
 
   apply(op: SyncOp): OpResult {
     if (op.fields.name === 'REJECT') return { opId: op.opId, outcome: 'rejected', reason: 'invalid' };
+    if (
+      this.requirePatients &&
+      op.entity === 'bookings' &&
+      typeof op.fields.patientId === 'string' &&
+      !this.rows.has(op.fields.patientId)
+    )
+      return { opId: op.opId, outcome: 'rejected', reason: 'patient_not_found' };
     if (op.fields.name === 'NEEDS_FIX') {
       this.apply({ ...op, fields: { ...op.fields, name: 'kept' } });
       return { opId: op.opId, outcome: 'needs_fixing', version: this.version, reason: 'after_close' };
@@ -95,7 +107,8 @@ class FakeServer {
   }
 
   fetch = (async (url: string, init: RequestInit) => {
-    if (this.offline) throw new TypeError('Failed to fetch');
+    if (this.offline || (this.offlineAfterFirst && this.requests.length >= 1))
+      throw new TypeError('Failed to fetch');
     const path = new URL(url).pathname;
     if (path === '/enrol') return json(201, enrolled);
     if (this.status !== 200) return json(this.status, { error: 'revoked' });
@@ -187,6 +200,128 @@ describe('device sync', () => {
     expect(await db.patients.get(op.entityId)).toMatchObject({ name: 'Newest' });
     await sync.syncNow();
     expect(await db.patients.get(op.entityId)).toMatchObject({ name: 'Newest', provisional: false });
+  });
+
+  it('writes several changes all or none, queued together in the given order', async () => {
+    const { server, db, sync } = await setup();
+    server.offline = true;
+    const gone = '01900000-0000-7000-8000-0000000000ee';
+    await db.patients.put({ id: gone, version: 3, deletedAt: 1 } as never);
+    const before = await db.patients.count();
+    await expect(
+      sync.writeMany([
+        { entity: 'patients', kind: 'create', fields: patient('New') },
+        { entity: 'patients', kind: 'update', fields: { name: 'X' }, entityId: gone },
+      ]),
+    ).rejects.toThrow('row deleted');
+    expect([await db.patients.count(), await db.outbox.count()]).toEqual([before, 0]);
+
+    const patientId = '01900000-0000-7000-8000-0000000000f1';
+    const ops = await sync.writeMany([
+      { entity: 'patients', kind: 'create', fields: patient('Hana'), entityId: patientId },
+      { entity: 'bookings', kind: 'create', fields: { patientId, startAt: 1, durationMin: 60 } },
+      { entity: 'bookings', kind: 'create', fields: { patientId, startAt: 2, durationMin: 60 } },
+    ]);
+    const queued = (await db.outbox.orderBy('seq').toArray()).map((e) => e.op.opId);
+    expect(queued).toEqual(ops.map((o) => o.opId));
+    expect(ops[0]!.entityId).toBe(patientId);
+  });
+
+  it('drops a refused new patient and its bookings, even when the answers come in two rounds', async () => {
+    const { server, db, sync } = await setup();
+    server.requirePatients = true;
+    server.offline = true;
+    const patientId = '01900000-0000-7000-8000-0000000000f2';
+    const [p, b] = await sync.writeMany([
+      { entity: 'patients', kind: 'create', fields: patient('REJECT'), entityId: patientId },
+      {
+        entity: 'bookings',
+        kind: 'create',
+        fields: { patientId, startAt: 1, durationMin: 60, importRowId: 'r1' },
+      },
+    ]);
+    server.offline = false;
+    server.answerLimit = 1;
+    server.holdAfterFirst = true;
+    await sync.syncNow();
+    // Only the patient was answered: it stays while its booking still waits.
+    expect(await db.outbox.count()).toBe(1);
+    expect(await db.patients.get(patientId)).toBeDefined();
+    server.holdAfterFirst = false;
+    server.answerLimit = Infinity;
+    await sync.syncNow();
+    expect(await db.patients.get(patientId)).toBeUndefined();
+    expect(await db.bookings.get(b!.entityId)).toBeUndefined();
+    expect(await db.outbox.count()).toBe(0);
+    const notices = await db.notices.toArray();
+    expect(notices.map((n) => [n.opId, n.reason]).sort()).toEqual(
+      [
+        [p!.opId, 'invalid'],
+        [b!.opId, 'patient_not_found'],
+      ].sort(),
+    );
+    // The refused booking keeps its sheet row, so the notice can send the reviewer back to it.
+    expect(notices.find((n) => n.opId === b!.opId)!.fields).toMatchObject({ importRowId: 'r1' });
+  });
+
+  it('never replays a queued booking onto its patient when the patient is pulled', async () => {
+    const { server, db, sync } = await setup();
+    const p = await sync.write('patients', 'create', patient('Abebe'));
+    await sync.syncNow();
+    server.holdOps = true;
+    await sync.write('bookings', 'create', {
+      patientId: p.entityId,
+      startAt: 1,
+      durationMin: 60,
+      note: 'bring x-ray',
+    });
+    // Another phone edits the patient; this phone pulls it while its booking still waits.
+    server.rows.set(p.entityId, {
+      ...server.rows.get(p.entityId)!,
+      note: 'allergic',
+      version: ++server.version,
+    });
+    await sync.syncNow();
+    expect(await db.outbox.count()).toBe(1);
+    const row = await db.patients.get(p.entityId);
+    expect(row).toMatchObject({ name: 'Abebe', note: 'allergic', provisional: false });
+    expect(row).not.toHaveProperty('startAt');
+  });
+
+  it('keeps a new patient the server took when its booking is refused and the row comes later', async () => {
+    const { server, db, sync } = await setup();
+    // Older changes fill the first pull page, so the new patient's row is not in this response.
+    for (let i = 0; i < 3; i++) {
+      server.apply({
+        opId: `01900000-0000-7000-8000-00000000010${i}`,
+        entity: 'procedures',
+        entityId: `01900000-0000-7000-8000-00000000020${i}`,
+        kind: 'create',
+        fields: { code: `P${i}` },
+        baseVersion: null,
+        at: 0,
+        userId: USER_ID,
+      });
+    }
+    server.offline = true;
+    const patientId = '01900000-0000-7000-8000-0000000000f3';
+    await sync.writeMany([
+      { entity: 'patients', kind: 'create', fields: patient('Hana'), entityId: patientId },
+      {
+        entity: 'bookings',
+        kind: 'create',
+        fields: { patientId, startAt: 1, durationMin: 60, name: 'REJECT' },
+      },
+    ]);
+    server.offline = false;
+    server.pageSize = 1;
+    server.offlineAfterFirst = true;
+    await sync.syncNow();
+    expect(await db.outbox.count()).toBe(0);
+    expect(await db.patients.get(patientId)).toMatchObject({ name: 'Hana' });
+    server.offlineAfterFirst = false;
+    await sync.syncNow();
+    expect(await db.patients.get(patientId)).toMatchObject({ name: 'Hana', provisional: false });
   });
 
   it('rolls back a rejected create and reports it', async () => {
