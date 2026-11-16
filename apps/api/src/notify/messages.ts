@@ -164,6 +164,44 @@ export function backupFailed(r: Recipient): OutgoingMessage {
   };
 }
 
+const USAGE_NAMES = {
+  workerRequests: { am: 'የመተግበሪያው ጥያቄዎች (requests)', en: 'app requests' },
+  d1RowsRead: { am: 'የተነበቡ የመረጃ ቋት ረድፎች', en: 'database rows read' },
+  d1RowsWritten: { am: 'የተጻፉ የመረጃ ቋት ረድፎች', en: 'database rows written' },
+  d1StorageBytes: { am: 'የመረጃ ቋቱ መጠን', en: 'database size' },
+} as const;
+
+/**
+ * Free-tier usage is high (PRD §19): to the Doctor, once per metric and level a day. Numbers only.
+ * Daily limits reset at 00:00 UTC (03:00 in Addis Ababa); the database size does not reset.
+ */
+export function usageAlert(
+  r: Recipient,
+  metric: keyof typeof USAGE_NAMES,
+  percent: number,
+  limit: number,
+): OutgoingMessage {
+  const name = USAGE_NAMES[metric][r.locale];
+  const shown =
+    metric === 'd1StorageBytes'
+      ? `${Math.round(limit / (1024 * 1024))} MB`
+      : new Intl.NumberFormat('en-US').format(limit);
+  const daily = metric !== 'd1StorageBytes';
+  return {
+    text: daily
+      ? say(
+          r,
+          `⚠️ የነጻው አገልግሎት ገደብ፦ ዛሬ ${name} ${percent}% ደርሷል (ገደቡ ${shown} በቀን)። 100% ከደረሰ መተግበሪያው እስከ ሌሊቱ 9:00 (03:00) ድረስ መረጃ መቀበል ያቆማል። የቴክኒክ ባለሙያውን ያሳውቁ።`,
+          `⚠️ Free plan limit: today's ${name} reached ${percent}% (limit ${shown} a day). At 100% the app stops saving until 03:00. Tell your technical person.`,
+        )
+      : say(
+          r,
+          `⚠️ የነጻው አገልግሎት ገደብ፦ ${name} ${percent}% ደርሷል (ገደቡ ${shown})። የቴክኒክ ባለሙያውን ያሳውቁ።`,
+          `⚠️ Free plan limit: the ${name} reached ${percent}% (limit ${shown}). Tell your technical person.`,
+        ),
+  };
+}
+
 /** Caption of the weekly CSV files (Sunday, PRD §17.3). */
 export function weeklyCsvCaption(r: Recipient, localDate: string): string {
   return say(
