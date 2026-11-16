@@ -36,6 +36,6 @@ test('patients: search, profile, edit, delete (PRD §8 item 9)', async ({ page }
   page.once('dialog', (d) => void d.accept());
   await page.getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByRole('heading', { name: 'Patients' })).toBeVisible();
-  await page.getByLabel('Search by name or phone').fill('Tigist');
+  await page.getByLabel('Search by name or phone').fill('Tigist Bekele');
   await expect(page.getByText('No patient matches this search.')).toBeVisible();
 });

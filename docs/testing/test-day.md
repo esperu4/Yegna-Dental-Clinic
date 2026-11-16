@@ -68,6 +68,8 @@ Work top to bottom; tick each box, and note anything odd in the **Findings** tab
 - [ ] 8.1 Message times (Doctor): change the reminder time, and the next reminder follows it.
 - [ ] 8.2 Notifications: allowed. Sheet photo reading lists the readers set up.
 - [ ] 8.3 Procedures, Clinic hours, Holidays, Setup steps all open and save.
+- [ ] 8.4 Change my PIN: a wrong current PIN is refused. After the change the new PIN unlocks this phone, and your other phones are signed out (sign in there with the new PIN).
+- [ ] 8.5 Free-tier usage alert: once `CF_ANALYTICS_TOKEN` is set (`docs/runbooks/usage-alert.md`), nothing arrives at normal use.
 
 ## 9. Backups (M6)
 
