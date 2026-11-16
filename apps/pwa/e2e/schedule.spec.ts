@@ -161,8 +161,9 @@ test('the sync pill shows offline, then sends what was booked offline (PRD §7.6
   await pill.click();
   await expect(page.getByText(/changes are saved on this phone/)).toBeVisible();
 
+  // Back online, the app syncs by itself (the online event); a "Sync now" tap would race it, as
+  // the button goes away once synced.
   await context.setOffline(false);
-  await page.getByRole('button', { name: 'Sync now' }).click();
   await expect(pill).toHaveText('Synced', { timeout: 15_000 });
   await expect(booked.getByText('Approved')).toBeVisible();
 });

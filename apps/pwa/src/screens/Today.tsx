@@ -42,7 +42,7 @@ export function Home() {
 
   return (
     <main class="screen">
-      <header class="bar">
+      <header class="bar today-bar">
         <h1>{t(view === 'week' ? 'week.title' : date === today ? 'home.title' : 'day.title')}</h1>
         <div class="segmented compact" role="group" aria-label={t('day.view')}>
           <button type="button" aria-pressed={view === 'day'} onClick={() => setView('day')}>
@@ -111,11 +111,19 @@ function WorkLinks() {
   const waiting = approvals?.days.reduce((n, d) => n + d.bookings.length, 0) ?? 0;
   return (
     <nav class="work-links">
-      <button type="button" class="secondary" onClick={() => go('calls')}>
+      <button
+        type="button"
+        class={`secondary${calls?.length ? ' has-items' : ''}`}
+        onClick={() => go('calls')}
+      >
         {t('calls.nav', { n: calls?.length ?? 0 })}
       </button>
       {isDoctor ? (
-        <button type="button" class="secondary" onClick={() => go('approvals')}>
+        <button
+          type="button"
+          class={`secondary${waiting ? ' has-items' : ''}`}
+          onClick={() => go('approvals')}
+        >
           {t('approvals.nav', { n: waiting })}
         </button>
       ) : null}
@@ -169,42 +177,39 @@ function DayView(props: {
           ›
         </button>
       </div>
-      {props.date !== props.today ? (
-        <button type="button" class="link" onClick={() => props.setDate(props.today)}>
-          {t('day.backToToday')}
-        </button>
-      ) : null}
 
-      <p class="counters">
-        {t('day.counts', {
-          booked: plan.counts.booked,
-          arrived: plan.counts.arrived,
-          done: plan.counts.done,
-        })}
-      </p>
-      {waiting.length ? (
-        <div class="waiting" aria-label={t('day.waiting')}>
-          <span class="muted small">{t('day.waiting')}</span>
-          {waiting.map((b) => (
-            <button type="button" class="chip-button" onClick={() => props.onOpen(b.id)}>
-              {patients.get(b.patientId)?.name ?? '…'}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <div class="day-meta">
+        <p class="counters">
+          {t('day.counts', {
+            booked: plan.counts.booked,
+            arrived: plan.counts.arrived,
+            done: plan.counts.done,
+          })}
+        </p>
+        {waiting.length ? (
+          <div class="waiting" aria-label={t('day.waiting')}>
+            <span class="muted small">{t('day.waiting')}</span>
+            {waiting.map((b) => (
+              <button type="button" class="chip-button" onClick={() => props.onOpen(b.id)}>
+                {patients.get(b.patientId)?.name ?? '…'}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
-      {isDoctor ? (
-        <div class="actions">
-          <button type="button" onClick={() => setTool('rule')}>
-            {t('day.changeDay')}
-          </button>
-          {!plan.day.closed ? (
-            <button type="button" onClick={() => setTool('block')}>
-              {t('day.addBlock')}
+        {isDoctor ? (
+          <div class="day-tools">
+            <button type="button" class="link" onClick={() => setTool('rule')}>
+              {t('day.changeDay')}
             </button>
-          ) : null}
-        </div>
-      ) : null}
+            {!plan.day.closed ? (
+              <button type="button" class="link" onClick={() => setTool('block')}>
+                {t('day.addBlock')}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
       {isDoctor ? <BlockList blocks={plan.blocks} date={plan.date} /> : null}
       {tool === 'rule' ? (
         <DayRuleSheet

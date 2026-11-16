@@ -927,3 +927,98 @@ a.button {
   max-width: none;
   cursor: zoom-out;
 }
+
+/* Design pass 1 (2026-11-16): the schedule starts higher on the screen. */
+.today-bar {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  grid-template-areas:
+    'title sync settings'
+    'view view prefs';
+  gap: 6px 8px;
+  padding: 8px 8px 8px 16px;
+}
+.today-bar h1 {
+  grid-area: title;
+}
+.today-bar .pill-wrap {
+  grid-area: sync;
+}
+.today-bar > .icon {
+  grid-area: settings;
+}
+.today-bar .segmented {
+  grid-area: view;
+  justify-self: start;
+}
+.today-bar .quick-prefs {
+  grid-area: prefs;
+}
+.work-links {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 0 16px 2px;
+  scrollbar-width: none;
+}
+.work-links button {
+  flex: none;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  background: var(--surface);
+}
+.work-links button.has-items {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--brand-fg);
+  font-weight: 600;
+}
+.day-picker > span {
+  flex: 1;
+  text-align: center;
+}
+.today-link {
+  min-height: 48px;
+  padding: 0;
+  font-weight: 600;
+}
+.day-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+.day-meta .waiting {
+  order: 3;
+  width: 100%;
+}
+.day-tools {
+  display: flex;
+  gap: 16px;
+}
+.day-tools .link {
+  min-height: 48px;
+  padding: 0;
+  font-size: 0.92rem;
+}
+/* Approved is the usual state: quiet. What needs someone stands out. */
+.status.status-approved {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  padding-left: 0;
+}
+.status.status-approved::before {
+  content: '✓ ';
+  color: var(--brand);
+}
+.status.status-pending_approval {
+  border-color: #c99a1e;
+  font-weight: 600;
+}
+.booking .small {
+  color: var(--muted);
+}
