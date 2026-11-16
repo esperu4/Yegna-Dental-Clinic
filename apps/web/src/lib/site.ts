@@ -32,6 +32,9 @@ export const TEXT = {
   mainNav: { am: 'ዋና ማውጫ', en: 'Main' },
   noPrices: { am: 'ዋጋ ከምርመራ በኋላ ይነገራል።', en: 'Prices are discussed after an examination.' },
   ourServices: { am: 'አገልግሎቶቻችን', en: 'Our services' },
+  visit: { am: 'ጉብኝት', en: 'Visiting us' },
+  clock: { am: 'በ24 ሰዓት:', en: '24-hour clock:' },
+  byPhone: { am: 'ቀጠሮ በስልክ ብቻ ይያዛል።', en: 'Bookings are by phone only.' },
   notFound: { am: 'ገጹ አልተገኘም', en: 'Page not found' },
   backHome: { am: 'ወደ መነሻ ገጽ', en: 'Back to the home page' },
 } satisfies Record<string, Record<Locale, string>>;

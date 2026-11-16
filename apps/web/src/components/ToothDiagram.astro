@@ -1,0 +1,66 @@
+---
+/**
+ * The site's one memorable element (PRD §15: inline SVG line motifs, hairline geometry): a molar
+ * in cross-section, drawn like a clinical diagram, with a callout from each part to the service
+ * that cares for it. It draws itself once on load (CSS only; off with prefers-reduced-motion).
+ * The same services are listed in text on the page, so the drawing is decorative for readers.
+ */
+import { CLINIC } from '@yegna/shared';
+import type { Locale } from '../lib/site';
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const [checkUp, cleaning, filling, extraction] = CLINIC.services.map((s) => s.name[locale]);
+
+/** From the part of the tooth to the label column at x = 318. */
+const callouts = [
+  { label: filling, from: [196, 73], y: 58 },
+  { label: checkUp, from: [241, 128], y: 128 },
+  { label: cleaning, from: [262, 207], y: 200 },
+  { label: extraction, from: [213, 296], y: 290 },
+];
+const ticks = Array.from({ length: 27 }, (_, i) => 56 + i * 10);
+---
+
+<svg class="tooth-diagram" viewBox="0 0 470 350" aria-hidden="true" focusable="false">
+  <g class="scale">
+    <line x1="24" y1="56" x2="24" y2="316"></line>
+    {ticks.map((y, i) => <line x1="24" y1={y} x2={i % 5 === 0 ? 34 : 29} y2={y}></line>)}
+  </g>
+
+  <path class="gum" d="M40 226 C66 212 88 200 106 203 M234 203 C252 200 274 212 300 226"></path>
+  <path class="bone" d="M40 262 C72 252 98 247 114 250 M226 250 C242 247 268 252 300 262"></path>
+
+  <path
+    class="draw enamel"
+    pathLength="1"
+    d="M98 160 C94 116 102 76 128 64 C146 56 160 70 170 80 C180 70 194 56 212 64 C238 76 246 116 242 160 C240 176 236 186 232 196 C230 240 226 290 214 318 C210 326 200 326 198 316 C194 280 188 240 170 222 C152 240 146 280 142 316 C140 326 130 326 126 318 C114 290 110 240 108 196 C104 186 100 176 98 160 Z"
+  ></path>
+  <path
+    class="draw dentin"
+    pathLength="1"
+    d="M110 168 C106 124 114 92 132 82 C146 76 158 86 170 96 C182 86 194 76 208 82 C226 92 234 124 230 168"
+  ></path>
+  <path
+    class="draw pulp"
+    pathLength="1"
+    d="M146 152 C146 128 194 128 194 152 C194 170 190 182 184 194 C192 236 200 276 206 306 M146 152 C146 170 150 182 156 194 C148 236 140 276 134 306"
+  ></path>
+  <path class="cavity" d="M188 72 C192 66 200 66 203 72 C200 78 192 78 188 72 Z"></path>
+
+  <g class="callouts">
+    {
+      callouts.map((c) => (
+        <g>
+          <circle cx={c.from[0]} cy={c.from[1]} r="3"></circle>
+          <polyline points={`${c.from[0]},${c.from[1]} 300,${c.y} 312,${c.y}`}></polyline>
+          <text x="318" y={c.y + 5}>
+            {c.label}
+          </text>
+        </g>
+      ))
+    }
+  </g>
+</svg>

@@ -4,8 +4,8 @@ import { getCollection, render } from 'astro:content';
 import { CLINIC, displayPhone, mapsUrl, telegramUrl } from '@yegna/shared';
 import { formatEtTime } from '@yegna/time';
 import Base from '../layouts/Base.astro';
-import ToothMark from '../components/ToothMark.astro';
-import { type Locale, type Page, NAV, PAGES, TEXT, pathOf } from '../lib/site';
+import ToothDiagram from '../components/ToothDiagram.astro';
+import { type Locale, type Page, NAV, TEXT, pathOf } from '../lib/site';
 
 export async function getStaticPaths() {
   const entries = await getCollection('pages');
@@ -20,8 +20,11 @@ const { entry, locale, page } = Astro.props;
 const { Content } = await render(entry);
 const data = entry.data;
 const phone = CLINIC.phones[0];
-const minutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
-const hours = `${TEXT.days[locale]}, ${formatEtTime(minutes(CLINIC.openingHours.opens), locale)} – ${formatEtTime(minutes(CLINIC.openingHours.closes), locale)}`;
+const toMinutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+const { opens, closes } = CLINIC.openingHours;
+const etHours = `${formatEtTime(toMinutes(opens), locale)} – ${formatEtTime(toMinutes(closes), locale)}`;
+const clockHours = `${opens} – ${closes}`;
+const withDiagram = page === 'home' || page === 'services';
 const faqLd = data.faqs
   ? {
       '@context': 'https://schema.org',
@@ -36,15 +39,48 @@ const faqLd = data.faqs
 ---
 
 <Base locale={locale} page={page} title={data.title} description={data.description} jsonLd={faqLd}>
-  <section class={page === 'home' ? 'hero' : 'intro'}>
-    {page === 'home' ? <ToothMark size={56} /> : null}
-    <h1>{data.heading}</h1>
-    <p class="lead">{data.lead}</p>
-    <p class="actions">
-      <a class="button primary" href={`tel:${phone}`}>{TEXT.callLong[locale]}</a>
-      <a class="button" href={telegramUrl()} rel="noopener">{TEXT.telegram[locale]}</a>
-    </p>
+  <section class:list={['opening', { 'with-diagram': withDiagram, home: page === 'home' }]}>
+    <div class="opening-text">
+      <h1>{data.heading}</h1>
+      <p class="lead">{data.lead}</p>
+      <p class="actions">
+        <a class="button primary" href={`tel:${phone}`}>{TEXT.callLong[locale]}</a>
+        <a class="button" href={telegramUrl()} rel="noopener">{TEXT.telegram[locale]}</a>
+      </p>
+    </div>
+    {withDiagram ? <ToothDiagram locale={locale} /> : null}
   </section>
+
+  {
+    page === 'home' || page === 'contact' ? (
+      <section class="visit" aria-label={TEXT.visit[locale]}>
+        <div>
+          <h2>{TEXT.hours[locale]}</h2>
+          <p>{TEXT.days[locale]}</p>
+          <p class="big">{etHours}</p>
+          <p class="small">{TEXT.clock[locale]} {clockHours}</p>
+        </div>
+        <div>
+          <h2>{TEXT.address[locale]}</h2>
+          <p>{CLINIC.address[locale]}</p>
+          <p>
+            <a href={mapsUrl()} rel="noopener">
+              {TEXT.maps[locale]}
+            </a>
+          </p>
+        </div>
+        <div>
+          <h2>{TEXT.phone[locale]}</h2>
+          {CLINIC.phones.map((p) => (
+            <p class="big">
+              <a href={`tel:${p}`}>{displayPhone(p)}</a>
+            </p>
+          ))}
+          <p class="small">{TEXT.byPhone[locale]}</p>
+        </div>
+      </section>
+    ) : null
+  }
 
   <section class="prose">
     <Content />
@@ -52,43 +88,24 @@ const faqLd = data.faqs
 
   {
     page === 'home' ? (
-      <section class="cards" aria-label={TEXT.ourServices[locale]}>
-        {CLINIC.services.map((s) => (
-          <article class="card">
-            <h2>{s.name[locale]}</h2>
-            <p>{s.about[locale]}</p>
-          </article>
-        ))}
+      <section class="services" aria-label={TEXT.ourServices[locale]}>
+        <h2>{TEXT.ourServices[locale]}</h2>
+        <dl>
+          {CLINIC.services.map((s) => (
+            <div>
+              <dt>{s.name[locale]}</dt>
+              <dd>{s.about[locale]}</dd>
+            </div>
+          ))}
+        </dl>
         <p class="note">
-          <a href={pathOf(locale, 'services')}>{NAV.services[locale]} ›</a> · {TEXT.noPrices[locale]}
+          {TEXT.noPrices[locale]} <a href={pathOf(locale, 'services')}>{NAV.services[locale]}</a>
         </p>
       </section>
     ) : null
   }
 
   {page === 'services' ? <p class="note">{TEXT.noPrices[locale]}</p> : null}
-
-  {
-    page === 'contact' ? (
-      <section class="card contact">
-        <h2>{TEXT.address[locale]}</h2>
-        <p>{CLINIC.address[locale]}</p>
-        <p>
-          <a href={mapsUrl()} rel="noopener">
-            {TEXT.maps[locale]}
-          </a>
-        </p>
-        <h2>{TEXT.phone[locale]}</h2>
-        <p>
-          {CLINIC.phones.map((p) => (
-            <a href={`tel:${p}`}>{displayPhone(p)}</a>
-          ))}
-        </p>
-        <h2>{TEXT.hours[locale]}</h2>
-        <p>{hours}</p>
-      </section>
-    ) : null
-  }
 
   {
     data.faqs ? (

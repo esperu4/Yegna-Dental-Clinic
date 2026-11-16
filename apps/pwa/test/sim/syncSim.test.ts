@@ -380,14 +380,14 @@ async function runSimulation(world: World, run: number, seed: number) {
       return;
     }
     const rows = // Like the real bot: only a live patient can ask (an erased patient's chat is unlinked).
-    (
-      await DB.prepare(
-        `SELECT b.id, b.patient_id FROM bookings b JOIN patients p ON p.id = b.patient_id
+      (
+        await DB.prepare(
+          `SELECT b.id, b.patient_id FROM bookings b JOIN patients p ON p.id = b.patient_id
           WHERE p.deleted_at IS NULL AND b.start_at >= ? AND b.start_at < ?`,
-      )
-        .bind(dayStart, record.dayEnd)
-        .all<{ id: string; patient_id: string }>()
-    ).results;
+        )
+          .bind(dayStart, record.dayEnd)
+          .all<{ id: string; patient_id: string }>()
+      ).results;
     if (!rows.length) return;
     const booking = pick(rows);
     const id = uuidv7();

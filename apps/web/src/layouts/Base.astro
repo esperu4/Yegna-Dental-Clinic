@@ -79,6 +79,7 @@ const indexable = import.meta.env.PUBLIC_INDEXABLE === '1';
     <meta property="og:locale" content={locale === 'am' ? 'am_ET' : 'en_US'} />
     <meta name="theme-color" content="#1f7a4d" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href={locale === 'am' ? '/fonts/ethiopic.woff2' : '/fonts/latin.woff2'} as="font" type="font/woff2" crossorigin />
     <script type="application/ld+json" is:inline set:html={JSON.stringify(dentist)} />
     {jsonLd ? <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} /> : null}
   </head>
@@ -121,6 +122,9 @@ const indexable = import.meta.env.PUBLIC_INDEXABLE === '1';
       </div>
     </footer>
 
-    <a class="call-bar" href={`tel:${phone}`}>{TEXT.callLong[locale]} · {displayPhone(phone)}</a>
+    <a class="call-bar" href={`tel:${phone}`}>
+      <span>{TEXT.callLong[locale]}</span>
+      <span class="num">{displayPhone(phone)}</span>
+    </a>
   </body>
 </html>

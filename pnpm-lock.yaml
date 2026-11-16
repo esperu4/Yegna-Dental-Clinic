@@ -258,6 +258,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@fontsource-variable/instrument-sans':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource-variable/noto-sans-ethiopic':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@yegna/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -271,6 +277,9 @@ importers:
       '@astrojs/check':
         specifier: ^0.9.12
         version: 0.9.12(@emnapi/runtime@1.11.3)(prettier@3.9.10)(typescript@6.0.3)
+      subset-font:
+        specifier: ^2.9.0
+        version: 2.9.0
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -1191,6 +1200,12 @@ packages:
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
+  '@fontsource-variable/instrument-sans@5.3.0':
+    resolution: {integrity: sha512-u4gKbDBTNFGkg997tfQn3eHOhHuquWUFTRT/rwzuKtrxX5P2ekfs2x+LgBPP4P32+cC+vUwF1Cr+IdRoPQbrGw==}
+
+  '@fontsource-variable/noto-sans-ethiopic@5.3.0':
+    resolution: {integrity: sha512-oCupTsf3TpT/e2OpWLffwnzkD7Z5MdDxStc75qHdzHRfEy7C6Jqj8GyU2FB6+FKt/SLfQdaY8F5NVAP8C4Iv/w==}
+
   '@grammyjs/types@5.0.0':
     resolution: {integrity: sha512-iq1Qrq1iPKkB8yAa0qSuIURMZOCuqTY5pWy5gHpCeL1oQ+GPadGhw/cDTVE8waJwuCzacUzuIjRv1sESvk7u7A==}
 
@@ -1840,6 +1855,9 @@ packages:
     resolution: {integrity: sha512-KMReFUr0B4t+D+OBkjR3KYqvocp2XaSzO55UcB6mgQMd3KbcE+mWTyvVV7D/zsdEbNnV6acZUutkiHQXvTr1Rw==}
     engines: {node: '>= 8'}
 
+  argparse@2.0.1:
+    resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
+
   aria-query@5.3.2:
     resolution: {integrity: sha512-COROpnaoap1E2F000S62r6A60uHZnmlvomhfyT2DlTcrY1OrBKn2UhH7qn5wTC9zMvD0AY7csdPSNwKP+7WiQw==}
     engines: {node: '>= 0.4'}
@@ -2314,6 +2332,9 @@ packages:
     resolution: {integrity: sha512-Wp1zXWPVUPBmfoa3Cqc9ctaKuzKAV6uLstRqlR56kSjplf5uAce+qeyYym7F+PHbGTk+tCEdkCW6RD7DX/gBZw==}
     engines: {node: '>=20'}
 
+  fontverter@2.1.0:
+    resolution: {integrity: sha512-UhH5aYymXL1bM8V5CA88V+aUe5Ypxu810AYjepQpdk5mLb8SA3xs+HeSr/vUkhEBL9oLhWCx7ezuge6/mqpT0A==}
+
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -2355,6 +2376,9 @@ packages:
 
   h3@1.15.11:
     resolution: {integrity: sha512-L3THSe2MPeBwgIZVSH5zLdBBU90TOxarvhK9d04IDY2AmVS8j2Jz2LIWtwsGOU3lu2I5jCN7FNvVfY2+XyF+mg==}
+
+  harfbuzzjs@1.6.4:
+    resolution: {integrity: sha512-T/PyfhVt1gGR2Tkf5KJUj1DQFkVBXHw552lS1iLEEDhV1Lukb3eq1pk2ov85kgbT2YUiZtJBTak9w+M7YgzUEQ==}
 
   hashery@1.5.1:
     resolution: {integrity: sha512-iZyKG96/JwPz1N55vj2Ie2vXbhu440zfUfJvSwEqEbeLluk7NnapfGqa7LH0mOsnDxTF85Mx8/dyR6HfqcbmbQ==}
@@ -2689,6 +2713,9 @@ packages:
   package-manager-detector@1.9.0:
     resolution: {integrity: sha512-zAMfbta9nPA8AKkA4WdmNAT8R8s6Dk0/xwPsqNnRidMFcLo1YkLuPDTgs2f64XdzS8vbLNnoJ+uUIkgbz7oRHA==}
 
+  pako@1.0.11:
+    resolution: {integrity: sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==}
+
   path-browserify@1.0.1:
     resolution: {integrity: sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==}
 
@@ -2893,6 +2920,9 @@ packages:
   strip-ansi@7.2.0:
     resolution: {integrity: sha512-yDPMNjp4WyfYBkHnjIRLfca1i6KMyGCtsVgoKe/z1+6vukgaENdgGBZt+ZmKPc4gavvEZ5OgHfHdrazhgNyG7w==}
     engines: {node: '>=12'}
+
+  subset-font@2.9.0:
+    resolution: {integrity: sha512-WJulQeFwbewrXIGcLJbSZFWI44fHW8gNRuPzLywfDL8w38IPRbN1JFxwG76aoohw9kcFdvjVIn2QmID1iy119A==}
 
   supports-color@10.2.2:
     resolution: {integrity: sha512-SS+jx45GF1QjgEXQx4NJZV9ImqmO2NPz5FNsIHrsDjh2YsHnawpan7SNQ1o8NuhrbHZy9AZhIoCUiCeaW/C80g==}
@@ -3307,6 +3337,10 @@ packages:
   vscode-uri@3.2.0:
     resolution: {integrity: sha512-m2gXo3bn0G1kT9InzMf07fTbqMbGtyckj3bH5ktLO+1Ssv+yiATZ4dhwaQv9UZWxJh6E9IFGnQyjgWVDWVBDrg==}
 
+  wawoff2@2.0.1:
+    resolution: {integrity: sha512-r0CEmvpH63r4T15ebFqeOjGqU4+EgTx4I510NtK35EMciSdcTxCw3Byy3JnBonz7iyIFZ0AbVo0bbFpEVuhCYA==}
+    hasBin: true
+
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
 
@@ -3322,6 +3356,9 @@ packages:
     resolution: {integrity: sha512-Tb2FUhB4vUsGQlfSquQLYkApkuPAFQXGFzxWKHHumVz2dK+X1RUm/HnID4+TfIGYJ1kTcwOaCk/buYCEJr6YjQ==}
     engines: {node: '>=20.11'}
     hasBin: true
+
+  woff2sfnt-sfnt2woff@1.0.0:
+    resolution: {integrity: sha512-edK4COc1c1EpRfMqCZO1xJOvdUtM5dbVb9iz97rScvnTevqEB3GllnLWCmMVp1MfQBdF1DFg/11I0rSyAdS4qQ==}
 
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
@@ -4086,6 +4123,10 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
+  '@fontsource-variable/instrument-sans@5.3.0': {}
+
+  '@fontsource-variable/noto-sans-ethiopic@5.3.0': {}
+
   '@grammyjs/types@5.0.0': {}
 
   '@humanfs/core@0.19.2':
@@ -4695,6 +4736,8 @@ snapshots:
       normalize-path: 3.0.0
       picomatch: 2.3.2
 
+  argparse@2.0.1: {}
+
   aria-query@5.3.2: {}
 
   assertion-error@2.0.1: {}
@@ -5202,6 +5245,11 @@ snapshots:
     dependencies:
       tiny-inflate: 1.0.3
 
+  fontverter@2.1.0:
+    dependencies:
+      wawoff2: 2.0.1
+      woff2sfnt-sfnt2woff: 1.0.0
+
   fsevents@2.3.3:
     optional: true
 
@@ -5248,6 +5296,8 @@ snapshots:
       radix3: 1.1.2
       ufo: 1.6.4
       uncrypto: 0.1.3
+
+  harfbuzzjs@1.6.4: {}
 
   hashery@1.5.1:
     dependencies:
@@ -5539,6 +5589,8 @@ snapshots:
 
   package-manager-detector@1.9.0: {}
 
+  pako@1.0.11: {}
+
   path-browserify@1.0.1: {}
 
   path-exists@4.0.0: {}
@@ -5755,6 +5807,12 @@ snapshots:
   strip-ansi@7.2.0:
     dependencies:
       ansi-regex: 6.6.0
+
+  subset-font@2.9.0:
+    dependencies:
+      fontverter: 2.1.0
+      harfbuzzjs: 1.6.4
+      p-limit: 3.1.0
 
   supports-color@10.2.2: {}
 
@@ -6075,6 +6133,10 @@ snapshots:
 
   vscode-uri@3.2.0: {}
 
+  wawoff2@2.0.1:
+    dependencies:
+      argparse: 2.0.1
+
   webidl-conversions@3.0.1: {}
 
   whatwg-url@5.0.0:
@@ -6087,6 +6149,10 @@ snapshots:
       isexe: 2.0.0
 
   why-is-node-running@3.2.1: {}
+
+  woff2sfnt-sfnt2woff@1.0.0:
+    dependencies:
+      pako: 1.0.11
 
   word-wrap@1.2.5: {}
 

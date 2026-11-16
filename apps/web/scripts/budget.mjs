@@ -30,8 +30,15 @@ for (const page of pages) {
       (m) => m[1],
     ),
   );
+  // Fonts a stylesheet loads count too (woff2 is already compressed: its own size).
+  for (const css of [...assets].filter((a) => a.endsWith('.css'))) {
+    for (const m of readFileSync(join(DIST, css), 'utf8').matchAll(/url\((\/fonts\/[^)]+\.woff2)\)/g))
+      assets.add(m[1]);
+  }
   let total = gz(page);
-  for (const asset of assets) total += gz(join(DIST, asset));
+  for (const asset of assets) {
+    total += asset.endsWith('.woff2') ? statSync(join(DIST, asset)).size : gz(join(DIST, asset));
+  }
 
   const scripts = [...html.matchAll(/<script\b([^>]*)>/g)].filter(
     (m) => !/type="application\/ld\+json"/.test(m[1]),

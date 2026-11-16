@@ -1,19 +1,28 @@
 /*
- * Design tokens shared by the website and the PWA (PRD §15): deep green for text (WCAG AA on
- * white and on the light-green surfaces), light green for surfaces and accents only.
+ * Design tokens shared by the website and the PWA (PRD §15). Text is ink or clinic green (WCAG AA
+ * on white and on enamel); mint and signal green are for surfaces, hairlines and glow only.
  */
 :root {
-  --yd-bg: #ffffff;
-  --yd-surface: #f3f8f4;
-  --yd-surface-glass: rgb(227 242 233 / 0.72);
-  --yd-fg: #10241a;
-  --yd-muted: #3f5548;
-  --yd-line: #d5e3d9;
-  --yd-brand: #1f7a4d;
-  --yd-brand-deep: #135c38;
-  --yd-brand-fg: #ffffff;
-  --yd-brand-soft: #e3f2e9;
-  --yd-glow: rgb(92 194 143 / 0.35);
-  --yd-radius: 14px;
-  --yd-font: 'Noto Sans Ethiopic', 'Nyala', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Colour */
+  --yd-white: #ffffff;
+  --yd-enamel: #f5faf6;
+  --yd-mint: #dcefe3;
+  --yd-mint-glass: rgb(220 239 227 / 0.62);
+  --yd-green: #0e5c3b;
+  --yd-ink: #0f2219;
+  --yd-ink-soft: #3d5447;
+  --yd-signal: #5fc48f;
+  --yd-hairline: #c9dfd1;
+
+  /* Type: Latin face first, Ethiopic for Ge'ez (each loads only for its characters). */
+  --yd-font: 'YD Latin', 'YD Ethiopic', 'Nyala', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Shape */
+  --yd-radius-panel: 22px;
+  --yd-radius-control: 999px;
+
+  /* Kept for the PWA's earlier names. */
+  --yd-bg: var(--yd-white);
+  --yd-fg: var(--yd-ink);
+  --yd-brand: var(--yd-green);
 }
