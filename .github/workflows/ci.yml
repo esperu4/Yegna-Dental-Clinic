@@ -69,9 +69,33 @@ jobs:
         env:
           SYNC_SIM_RUNS: 1000
 
+  lighthouse:
+    # PRD §15, §20 M7: Lighthouse mobile >= 90 in all four categories on every page (CI gate).
+    name: Website Lighthouse
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The runner's Chrome; builds with PUBLIC_INDEXABLE=1 for the check only, then rebuilds.
+      - run: pnpm --filter @yegna/web lighthouse
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-reports
+          path: apps/web/.lighthouseci
+          retention-days: 7
+
   deploy-staging:
     name: Deploy to staging
-    needs: [check, e2e, sync-sim]
+    needs: [check, e2e, sync-sim, lighthouse]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: staging

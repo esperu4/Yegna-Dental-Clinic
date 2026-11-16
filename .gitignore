@@ -27,3 +27,6 @@ CLOUDFLARE_*.txt
 
 # Backup files (encrypted patient data): never in the repo or OneDrive
 *.ydb
+
+# Lighthouse CI reports
+.lighthouseci/
