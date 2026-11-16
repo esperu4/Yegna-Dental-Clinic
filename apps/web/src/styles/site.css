@@ -8,7 +8,9 @@
   src: url('/fonts/ethiopic.woff2') format('woff2');
   font-weight: 100 900;
   font-stretch: 62.5% 100%;
-  font-display: swap;
+  /* No late swap: if it is not there in time (first visit on a slow line) the page keeps the
+     system's Ethiopic font, so nothing jumps; it is cached for every page after. */
+  font-display: optional;
   unicode-range: U+1200-139F, U+2D80-2DDF, U+AB00-AB2F;
 }
 @font-face {
@@ -16,7 +18,7 @@
   src: url('/fonts/latin.woff2') format('woff2');
   font-weight: 400 700;
   font-stretch: 75% 100%;
-  font-display: swap;
+  font-display: optional;
   unicode-range: U+0000-024F, U+2010-2027, U+20AC;
 }
 
@@ -31,7 +33,6 @@ html {
   color: var(--yd-ink);
   background: var(--yd-white);
   -webkit-text-size-adjust: 100%;
-  text-rendering: optimizeLegibility;
 }
 body {
   margin: 0;
@@ -230,6 +231,8 @@ main {
   width: 100%;
   max-width: 34rem;
   height: auto;
+  /* Space reserved before it draws: no layout shift (Lighthouse CLS). */
+  aspect-ratio: 470 / 350;
   justify-self: end;
   overflow: visible;
 }
