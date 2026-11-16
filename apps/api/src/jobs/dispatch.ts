@@ -7,6 +7,7 @@ import { utcToLocal } from '@yegna/time';
 import { getDb } from '../lib/db.ts';
 import { meterD1 } from '../lib/queryMeter.ts';
 import { type Notifier, telegramNotifier } from '../notify/notifier.ts';
+import { type BackupDeps, nightlyBackup, weeklyCsv } from './backup.ts';
 import { PATIENT_JOBS, type PatientJobContext } from './patient.ts';
 import {
   type JobContext,
@@ -23,6 +24,7 @@ import {
 /** Most important first: if the run's query budget runs out, the rest waits for the next hour. */
 const TEAM_JOBS = [
   ['tomorrow_summary', tomorrowSummaries],
+  ['weekly_csv', weeklyCsv],
   ['call_list', callListMessages],
   ['clash', clashAlerts],
   ['unapproved_24h', unapprovedAlerts],
@@ -40,17 +42,36 @@ export async function runHourly(
   now = Date.now(),
   teamNotifier?: Notifier,
   patientNotifier?: Notifier,
+  /** Tests: a fake Google Drive for the nightly backup. */
+  backupDrive?: BackupDeps['drive'],
 ): Promise<void> {
   const meter = meterD1(env.DB);
   const db = getDb(meter.d1);
   const local = utcToLocal(now);
 
   const team = teamNotifier ?? (env.TEAM_BOT_TOKEN ? telegramNotifier(env.TEAM_BOT_TOKEN) : null);
+  // The backup first: it does not need the team bot (which only carries its failure alert).
+  await runBackup(
+    { db, meter, notifier: team ?? SILENT, now, local, pwaUrl: env.PWA_ORIGIN },
+    team !== null,
+    { d1: meter.d1, env, ...(backupDrive ? { drive: backupDrive } : {}) },
+  );
   if (team) await runTeamJobs({ db, meter, notifier: team, now, local, pwaUrl: env.PWA_ORIGIN });
   else console.warn('cron', 'team bot not configured; team jobs skipped');
 
   const patient = patientNotifier ?? (env.PATIENT_BOT_TOKEN ? telegramNotifier(env.PATIENT_BOT_TOKEN) : null);
   if (patient) await runPatientJobs({ db, meter, notifier: patient, now, local });
+}
+
+/** Sends nothing: the backup's failure alert when there is no team bot. */
+const SILENT: Notifier = { send: async () => undefined };
+
+async function runBackup(ctx: JobContext, withTeam: boolean, deps: BackupDeps) {
+  try {
+    await nightlyBackup(ctx, withTeam ? await linkedTeam(ctx.db) : [], deps);
+  } catch (err) {
+    console.error('cron_job_failed', 'backup', err instanceof Error ? err.name : 'unknown');
+  }
 }
 
 async function runTeamJobs(ctx: JobContext) {

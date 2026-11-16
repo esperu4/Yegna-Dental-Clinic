@@ -14,6 +14,12 @@ interface Env {
   PATIENT_BOT_WEBHOOK_SECRET?: string;
   /** The patient bot's @username without the @ (a var; shown on the website and in the PWA). */
   PATIENT_BOT_USERNAME?: string;
+  /** Nightly backup (PRD §17, ADR 0012): AES-256 key, base64 of 32 bytes; the Doctor keeps a printed copy. */
+  BACKUP_KEY?: string;
+  /** OAuth client and refresh token of the clinic's Google account (scope drive.file). */
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_REFRESH_TOKEN?: string;
   /** Free schedule readers (ADR 0009); each is used only when its key is set. */
   MISTRAL_API_KEY?: string;
   GROQ_API_KEY?: string;

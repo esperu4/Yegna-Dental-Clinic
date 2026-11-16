@@ -13,7 +13,9 @@
     "typecheck": "pnpm -r --parallel typecheck",
     "test": "pnpm -r test",
     "build": "pnpm -r build",
-    "eval:imports": "pnpm --filter @yegna/ai eval:imports"
+    "eval:imports": "pnpm --filter @yegna/ai eval:imports",
+    "backup": "pnpm --filter @yegna/api backup",
+    "restore": "pnpm --filter @yegna/api restore"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

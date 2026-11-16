@@ -31,10 +31,24 @@ export async function deliverOnce(
   render: () => OutgoingMessage | Promise<OutgoingMessage>,
   now: number,
 ): Promise<DeliveryResult> {
+  return runOnce(db, target, async () => notifier.send(target.chatId, await render()), now);
+}
+
+/**
+ * Runs `work` at most once per (kind, key, target) to success, with the same claim as messages:
+ * a failure (thrown) is retried by a later run; `PermanentSendError` is never retried. Used for
+ * sends that are not plain messages (documents, the nightly backup).
+ */
+export async function runOnce(
+  db: Db,
+  target: NotificationKey,
+  work: () => Promise<unknown>,
+  now: number,
+): Promise<DeliveryResult> {
   if (!(await claim(db, target, now))) return 'skipped';
   const where = keyed(target);
   try {
-    await notifier.send(target.chatId, await render());
+    await work();
   } catch (err) {
     console.error('notify_failed', target.kind, sendErrorKind(err));
     const status = err instanceof PermanentSendError ? 'dropped' : 'failed';
