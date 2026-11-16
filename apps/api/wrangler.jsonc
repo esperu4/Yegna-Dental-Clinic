@@ -38,6 +38,25 @@
         },
       ],
     },
-    // production: added when the production D1 is created (after M0).
+    // Production on the free workers.dev subdomain until the domain is decided (ADR 0001, ADR 0013).
+    // Deployed only by hand (the "Deploy production" workflow). Bot usernames are added once the
+    // clinic's real bots exist (docs/runbooks/production.md).
+    "production": {
+      "name": "yegna-api",
+      "triggers": { "crons": ["0 * * * *"] },
+      "vars": {
+        "ENVIRONMENT": "production",
+        "PWA_ORIGIN": "https://yegna-pwa.yegna-api.workers.dev",
+      },
+      "ai": { "binding": "AI" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "yegna-production",
+          "database_id": "fcec4bf2-f261-44ac-aa83-d40b2d242322",
+          "migrations_dir": "../../packages/db/migrations",
+        },
+      ],
+    },
   },
 }

@@ -15,7 +15,9 @@
     "deploy:staging": "wrangler deploy --env staging",
     "backup": "node --experimental-transform-types --no-warnings scripts/backup.ts",
     "restore": "node --experimental-transform-types --no-warnings scripts/restore.ts",
-    "google-auth": "node --experimental-transform-types --no-warnings scripts/google-auth.ts"
+    "google-auth": "node --experimental-transform-types --no-warnings scripts/google-auth.ts",
+    "db:migrate:production": "wrangler d1 migrations apply DB --remote --env production",
+    "deploy:production": "wrangler deploy --env production"
   },
   "dependencies": {
     "@yegna/ai": "workspace:*",

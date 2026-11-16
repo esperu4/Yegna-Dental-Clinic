@@ -12,6 +12,9 @@ export default tseslint.config(
       '**/coverage/**',
       '**/worker-configuration.d.ts',
       'packages/db/migrations/**',
+      // Agents' git worktrees: each is linted in its own checkout.
+      '.claude/worktrees/**',
+      '**/.lighthouseci/**',
     ],
   },
   js.configs.recommended,
@@ -25,7 +28,7 @@ export default tseslint.config(
   },
   {
     // Node-run files: config, scripts, hooks, tests.
-    files: ['**/*.{js,mjs}', '**/scripts/**', '**/test/**', '**/*.config.ts', '.claude/**'],
+    files: ['**/*.{js,mjs,cjs}', '**/scripts/**', '**/test/**', '**/*.config.ts', '.claude/**'],
     languageOptions: { globals: globals.node },
   },
   {

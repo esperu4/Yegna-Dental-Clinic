@@ -13,7 +13,8 @@ export type Route =
   | 'holidays'
   | 'wizard'
   | 'print'
-  | 'imports';
+  | 'imports'
+  | 'patients';
 const ROUTES: readonly Route[] = [
   'home',
   'calls',
@@ -27,6 +28,7 @@ const ROUTES: readonly Route[] = [
   'wizard',
   'print',
   'imports',
+  'patients',
 ];
 
 /** `#/imports/<id>` ⇒ route `imports`, param `<id>` (one optional parameter per route). */

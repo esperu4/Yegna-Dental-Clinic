@@ -12,7 +12,8 @@
     "test:sim": "vitest run test/sim",
     "e2e": "playwright test",
     "deploy:staging": "vite build --mode staging && wrangler deploy --env staging",
-    "e2e:offline": "playwright test --config playwright.offline.config.ts"
+    "e2e:offline": "playwright test --config playwright.offline.config.ts",
+    "deploy:production": "vite build --mode production && wrangler deploy --env production"
   },
   "dependencies": {
     "@preact/signals": "^2.11.4",

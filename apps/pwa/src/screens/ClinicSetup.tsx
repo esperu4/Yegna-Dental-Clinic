@@ -4,6 +4,7 @@
  */
 import type { JSX } from 'preact';
 import { useState } from 'preact/hooks';
+import { TelegramLink } from '../components/TelegramLink.tsx';
 import { HoursEditor, PreferencesPicker, ProcedureManager } from '../components/clinicConfig.tsx';
 import { Screen } from '../components/ui.tsx';
 import { type MessageKey, t } from '../i18n/index.ts';
@@ -68,8 +69,7 @@ const STEPS: readonly Step[] = [
   { title: 'wizard.language.title', content: () => <PreferencesPicker /> },
   { title: 'hours.title', body: 'wizard.hours.body', content: () => <HoursEditor /> },
   { title: 'procedures.title', body: 'wizard.procedures.body', content: () => <ProcedureManager /> },
-  // Linking the team bot arrives with M3; the step says so instead of hiding it.
-  { title: 'wizard.telegram.title', body: 'wizard.telegram.body' },
+  { title: 'wizard.telegram.title', body: 'wizard.telegram.body', content: () => <TelegramLink /> },
   { title: 'wizard.notifications.title', content: () => <NotificationStep /> },
 ];
 

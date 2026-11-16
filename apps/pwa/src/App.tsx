@@ -11,6 +11,7 @@ import { Approvals } from './screens/Approvals.tsx';
 import { Calls } from './screens/Calls.tsx';
 import { Home } from './screens/Today.tsx';
 import { Lock } from './screens/Lock.tsx';
+import { Patients } from './screens/Patients.tsx';
 import { Settings } from './screens/Settings.tsx';
 import { Welcome } from './screens/Welcome.tsx';
 import { lazyScreen } from './components/lazy.tsx';
@@ -81,6 +82,8 @@ export function App() {
       return <Print />;
     case 'imports':
       return <Imports />;
+    case 'patients':
+      return <Patients />;
     default:
       return <Home />;
   }

@@ -3,6 +3,7 @@
  * clinic hours, Staff accounts, phones, and the setup steps again.
  */
 import { PatientBotConnect } from '../components/PatientBotConnect.tsx';
+import { MessageTimes, NotificationsSetting, ReaderStatus } from '../components/SettingsExtras.tsx';
 import { TelegramLink } from '../components/TelegramLink.tsx';
 import { PreferencesPicker } from '../components/clinicConfig.tsx';
 import { Screen } from '../components/ui.tsx';
@@ -27,6 +28,9 @@ export function Settings() {
         <PreferencesPicker />
         <TelegramLink />
         {isDoctor ? <PatientBotConnect /> : null}
+        <NotificationsSetting />
+        {isDoctor ? <MessageTimes /> : null}
+        {isDoctor ? <ReaderStatus /> : null}
 
         {isDoctor ? (
           <div class="row-group">

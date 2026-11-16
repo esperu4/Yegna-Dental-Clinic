@@ -18,7 +18,7 @@ import { uuidv7, uuidv7Schema } from '@yegna/shared';
 import { auditInsert } from '../lib/audit.ts';
 import { CURRENT_VERSION, withVersion } from '../lib/db.ts';
 import { type AppEnv, fail, parseBody } from '../lib/http.ts';
-import { requireDevice } from '../lib/session.ts';
+import { requireDevice, requireDoctor } from '../lib/session.ts';
 import {
   MAX_PHOTO_BYTES,
   PHOTO_TYPES,
@@ -28,6 +28,7 @@ import {
 } from '../imports/photo.ts';
 import { IMPORTS_PER_USER_PER_DAY, importsToday } from '../imports/limits.ts';
 import { readAndReport } from '../imports/report.ts';
+import { readerChain } from '../imports/readers.ts';
 import { skippedDuplicates } from '../notify/messages.ts';
 import { sendErrorKind, telegramNotifier } from '../notify/notifier.ts';
 
@@ -39,6 +40,18 @@ importRoutes.use('/imports/*', requireDevice);
 const UPLOAD_TYPES: readonly string[] = PHOTO_TYPES;
 export const MAX_UPLOAD_BYTES = MAX_PHOTO_BYTES;
 const LIST_LIMIT = 30;
+
+/**
+ * Doctor only (PRD §8 item 12 "AI provider status"): which free readers this environment has, in
+ * the order they are tried (ADR 0009). Reader ids only; never keys.
+ */
+importRoutes.get('/imports/readers', requireDoctor, (c) => {
+  const chain = readerChain(c.env);
+  return c.json({
+    primary: chain.primary.map((r) => r.id),
+    lastResort: chain.lastResort.map((r) => r.id),
+  });
+});
 
 importRoutes.get('/imports', async (c) => {
   const db = c.get('db');

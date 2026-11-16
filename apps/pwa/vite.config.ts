@@ -7,6 +7,7 @@ const API_URLS: Record<string, string> = {
   development: 'http://localhost:8787',
   test: 'http://localhost:8787',
   staging: 'https://yegna-api-staging.yegna-api.workers.dev',
+  production: 'https://yegna-api.yegna-api.workers.dev',
 };
 
 export default defineConfig(({ mode }) => {

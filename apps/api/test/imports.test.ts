@@ -8,7 +8,7 @@ import { type EnrolResponse, type SyncOp, sheetIdFor, uuidv7 } from '@yegna/shar
 import { addDays, localDateOf, localToUtc, toEthiopian, parseIsoDate, weekdayOf } from '@yegna/time';
 import { processImport } from '../src/imports/process.ts';
 import { getDb } from '../src/lib/db.ts';
-import { type Call, caller, createTestEnv, resetDb, settle, setupDoctor } from './helpers.ts';
+import { type Call, addStaff, caller, createTestEnv, resetDb, settle, setupDoctor } from './helpers.ts';
 
 let env: Env;
 let dispose: () => Promise<void>;
@@ -481,5 +481,18 @@ describe('import routes (PRD §8 item 10)', () => {
       toBook: number;
     }[];
     expect(listed.find((i) => i.id === id)!.toBook).toBe(winner === 'accept' ? 2 : 0);
+  });
+});
+
+describe('reader status (PRD §8 item 12)', () => {
+  it('tells the Doctor which readers are set up, by id only; Staff may not ask', async () => {
+    const res = await call('GET', '/imports/readers', { token: doctor.token });
+    expect(res.status).toBe(200);
+    expect(res.json).toEqual({ primary: [], lastResort: [] });
+    await addStaff(call, doctor.token, 'Hana', '4731');
+    const staff = (
+      await call('POST', '/enrol', { body: { name: 'Hana', pin: '4731', deviceLabel: 'Front desk' } })
+    ).json as unknown as EnrolResponse;
+    expect((await call('GET', '/imports/readers', { token: staff.token })).status).toBe(403);
   });
 });
