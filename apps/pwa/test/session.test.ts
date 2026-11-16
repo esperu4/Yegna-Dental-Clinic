@@ -150,3 +150,21 @@ describe('device session', () => {
     expect(s.status.value).not.toBe('ready');
   });
 });
+
+describe('changing my own PIN', () => {
+  it('checks the current PIN on the phone, then updates the server and this phone', async () => {
+    const calls: { path: string; method: string | undefined; body: unknown }[] = [];
+    const s = make((path, init) => {
+      calls.push({ path, method: init.method, body: init.body ? JSON.parse(String(init.body)) : null });
+      return path === '/enrol' ? { status: 201, body: enrolled } : { status: 200, body: {} };
+    });
+    await s.enrol({ name: 'Hana', pin: '4731', deviceLabel: 'x' });
+    expect(await s.changePin('0000', '582914')).toBe('wrong');
+    expect(calls.filter((c) => c.method === 'PATCH')).toHaveLength(0);
+    expect(await s.changePin('4731', '582914')).toBe('ok');
+    expect(calls.at(-1)).toEqual({ path: '/admin/users/u1', method: 'PATCH', body: { pin: '582914' } });
+    s.status.value = 'locked';
+    expect(await s.unlock('4731')).toMatchObject({ ok: false, reason: 'wrong' });
+    expect(await s.unlock('582914')).toEqual({ ok: true });
+  });
+});

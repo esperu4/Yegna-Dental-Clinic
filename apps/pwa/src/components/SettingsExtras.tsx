@@ -9,7 +9,8 @@ import { formatTime } from '../lib/format.ts';
 import { useLive } from '../lib/live.ts';
 import { session } from '../lib/session.ts';
 import { sync } from '../lib/sync.ts';
-import { useAction } from './ui.tsx';
+import { PinField, useAction } from './ui.tsx';
+import { isTrivialPin } from '@yegna/shared/client';
 
 /** Local hours offered for evening messages: 15:00–21:00 (9:00–3:00 ET). */
 const MESSAGE_HOURS = [15, 16, 17, 18, 19, 20, 21];
@@ -106,5 +107,56 @@ export function ReaderStatus() {
         </p>
       )}
     </section>
+  );
+}
+
+/** The Doctor's own PIN (6 digits, ADR 0005); Staff PINs are reset by the Doctor in Staff accounts. */
+export function ChangeMyPin() {
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [repeat, setRepeat] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const { busy, error, setError, run } = useAction();
+  if (!open) {
+    return (
+      <button type="button" class="row" onClick={() => setOpen(true)}>
+        {t('settings.changePin')} ›
+      </button>
+    );
+  }
+  function save(e: Event) {
+    e.preventDefault();
+    setMessage(null);
+    if (!/^\d{6}$/.test(next)) return setError(t('error.doctorPinFormat'));
+    if (next !== repeat) return setError(t('error.pinMismatch'));
+    if (isTrivialPin(next)) return setError(t('error.pinTrivial'));
+    void run(async () => {
+      const result = await session.changePin(current, next);
+      if (result === 'wrong') throw new Error(t('settings.changePin.wrong'));
+      setOpen(false);
+      setCurrent('');
+      setNext('');
+      setRepeat('');
+      setMessage(t('settings.changePin.done'));
+    });
+  }
+  return (
+    <form class="stack" onSubmit={save} aria-label={t('settings.changePin')}>
+      <h2 class="step-title">{t('settings.changePin')}</h2>
+      <PinField label={t('settings.changePin.current')} value={current} onInput={setCurrent} />
+      <PinField label={t('settings.changePin.next')} value={next} onInput={setNext} />
+      <PinField label={t('settings.changePin.repeat')} value={repeat} onInput={setRepeat} />
+      <div class="actions spread">
+        <button type="button" disabled={busy} onClick={() => setOpen(false)}>
+          {t('common.cancel')}
+        </button>
+        <button type="submit" class="primary" disabled={busy}>
+          {t('common.save')}
+        </button>
+      </div>
+      {error ? <p class="banner error">{error}</p> : null}
+      {message ? <p class="banner">{message}</p> : null}
+    </form>
   );
 }
