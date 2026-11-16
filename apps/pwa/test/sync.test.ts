@@ -761,12 +761,30 @@ describe('device sync: robustness', () => {
       booking('old', Date.now() - 40 * day),
       booking('old-edited', Date.now() - 40 * day),
       booking('in-window', Date.now() - 20 * day),
+      booking('old-asked', Date.now() - 40 * day),
     ] as never);
+    // An open patient request keeps its booking on the device, so the call list can close it.
+    await db.patientRequests.put({
+      id: 'r1',
+      bookingId: 'old-asked',
+      patientId: 'p1',
+      kind: 'cancel',
+      status: 'open',
+      handledBy: null,
+      version: 1,
+      updatedAt: 0,
+      updatedBy: null,
+      deletedAt: null,
+    });
     // The server holds the edit back: it stays in the outbox, so its booking stays too.
     server.holdOps = true;
     await sync.write('bookings', 'update', { note: 'x-ray done' }, 'old-edited');
     await sync.syncNow();
-    expect((await db.bookings.toCollection().primaryKeys()).sort()).toEqual(['in-window', 'old-edited']);
+    expect((await db.bookings.toCollection().primaryKeys()).sort()).toEqual([
+      'in-window',
+      'old-asked',
+      'old-edited',
+    ]);
   });
 
   it('asks for the first-fill window until the first full pull is done', async () => {
@@ -774,6 +792,58 @@ describe('device sync: robustness', () => {
     await sync.syncNow();
     await sync.syncNow();
     expect(server.requests.map((r) => r.initial)).toEqual([true, false]);
+  });
+
+  it('pulls patient requests and marks one handled through the outbox (PRD §14)', async () => {
+    const { server, db, sync } = await setup();
+    const id = '01900000-0000-7000-8000-0000000000e1';
+    server.version = 1;
+    server.rows.set(id, {
+      entity: 'patientRequests',
+      id,
+      bookingId: 'b1',
+      patientId: 'p1',
+      kind: 'reschedule',
+      status: 'open',
+      handledBy: null,
+      version: 1,
+      updatedAt: 0,
+      updatedBy: null,
+      deletedAt: null,
+    });
+    await sync.syncNow();
+    expect(await db.patientRequests.where('status').equals('open').count()).toBe(1);
+
+    server.offline = true;
+    await sync.write('patientRequests', 'update', { status: 'handled' }, id);
+    expect(await db.patientRequests.get(id)).toMatchObject({
+      status: 'handled',
+      handledBy: USER_ID,
+      provisional: true,
+    });
+    server.offline = false;
+    await sync.syncNow();
+    expect(server.requests.flatMap((r) => r.ops)).toContainEqual(
+      expect.objectContaining({
+        entity: 'patientRequests',
+        kind: 'update',
+        fields: { status: 'handled' },
+        baseVersion: 1,
+      }),
+    );
+    expect(await db.patientRequests.get(id)).toMatchObject({ status: 'handled', provisional: false });
+  });
+
+  it('fails a pull holding an entity it does not know, keeping its cursor (a newer server)', async () => {
+    const { server, db, sync } = await setup();
+    await sync.write('patients', 'create', patient());
+    await sync.syncNow();
+    const cursor = await db.getMeta('syncCursor');
+    server.version++;
+    server.rows.set('x', { entity: 'futureThings', id: 'x', version: server.version, deletedAt: null });
+    await sync.syncNow();
+    expect(await db.getMeta('syncCursor')).toBe(cursor);
+    expect(sync.state.value).not.toBe('idle');
   });
 
   it('treats an unreadable success response as a failed sync, keeping the outbox', async () => {
@@ -848,6 +918,20 @@ describe('applyLocally', () => {
     };
     expect(applyLocally(fix, op({ kind: 'update', fields: { startAt: 1000 } }), 'staff')).toMatchObject({
       status: 'pending_approval',
+    });
+  });
+
+  it('keeps who handled a patient request first', () => {
+    const request = { id: 'r1', status: 'open', handledBy: null, version: 2 };
+    const handle = op({
+      entity: 'patientRequests',
+      entityId: 'r1',
+      kind: 'update',
+      fields: { status: 'handled' },
+    });
+    expect(applyLocally(request, handle, 'staff')).toMatchObject({ status: 'handled', handledBy: USER_ID });
+    expect(applyLocally({ ...request, handledBy: 'someone' }, handle, 'staff')).toMatchObject({
+      handledBy: 'someone',
     });
   });
 

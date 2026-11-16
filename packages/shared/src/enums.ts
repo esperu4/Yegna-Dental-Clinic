@@ -49,6 +49,8 @@ export type CallOutcome = (typeof CALL_OUTCOMES)[number];
 
 export const PATIENT_REQUEST_KINDS = ['reschedule', 'cancel'] as const;
 export const PATIENT_REQUEST_STATUSES = ['open', 'handled'] as const;
+export type PatientRequestKind = (typeof PATIENT_REQUEST_KINDS)[number];
+export type PatientRequestStatus = (typeof PATIENT_REQUEST_STATUSES)[number];
 
 export const IMPORT_STATUSES = ['queued', 'read', 'reviewed', 'failed'] as const;
 export const IMPORT_ROW_MATCHES = ['existing', 'new', 'duplicate', 'unreadable'] as const;

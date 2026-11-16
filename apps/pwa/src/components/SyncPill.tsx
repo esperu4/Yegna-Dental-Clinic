@@ -13,6 +13,7 @@ import { pillState } from '../lib/syncStatus.ts';
 const PROBLEM_KEYS: Record<string, MessageKey> = {
   server_error: 'pill.problem.server',
   offline: 'pill.problem.server',
+  update_needed: 'pill.problem.update',
 };
 
 export function SyncPill() {

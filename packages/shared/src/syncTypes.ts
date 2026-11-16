@@ -4,7 +4,13 @@
  */
 import type { BookingError, WeeklyDefaults } from '@yegna/time';
 import type { StatusChangeError } from './bookingLifecycle.ts';
-import type { BookingSource, BookingStatus, Role } from './enums.ts';
+import type {
+  BookingSource,
+  BookingStatus,
+  PatientRequestKind,
+  PatientRequestStatus,
+  Role,
+} from './enums.ts';
 
 /** Entities a device may write through `/sync`. */
 export const WRITE_ENTITIES = [
@@ -15,6 +21,8 @@ export const WRITE_ENTITIES = [
   'blocks',
   'holidays',
   'settings',
+  /** Created by the patient bot only; devices may only mark them handled (PRD §8 item 8, §14). */
+  'patientRequests',
 ] as const;
 export type WriteEntity = (typeof WRITE_ENTITIES)[number];
 
@@ -178,6 +186,16 @@ export interface SettingsRow extends SyncMeta {
   defaultTemplate: string | null;
 }
 
+/** A patient's reschedule or cancel request from the patient bot (PRD §14), for the call list. */
+export interface PatientRequestRow extends SyncMeta {
+  id: string;
+  bookingId: string;
+  patientId: string;
+  kind: PatientRequestKind;
+  status: PatientRequestStatus;
+  handledBy: string | null;
+}
+
 /** Names and roles only (PRD §7.1). */
 export interface UserRow extends SyncMeta {
   id: string;
@@ -194,6 +212,7 @@ export interface RowOf {
   blocks: BlockRow;
   holidays: HolidayRow;
   settings: SettingsRow;
+  patientRequests: PatientRequestRow;
   users: UserRow;
 }
 

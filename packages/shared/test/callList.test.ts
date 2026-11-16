@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { BookingRow, PatientRow } from '../src/index.ts';
+import type { BookingRow, PatientRequestRow, PatientRow } from '../src/index.ts';
 import { localToUtc } from '@yegna/time';
 import { approvalsByDay, callList, callListRange } from '../src/callList.ts';
 
@@ -108,6 +108,51 @@ describe('callList (PRD §8 item 8)', () => {
     // Handled again after the 24 h mark: off the list.
     const handledLate = { ...handledEarly, callHandledAt: later };
     expect(callList([handledLate], patients, later + 60_000)).toEqual([]);
+  });
+
+  it('lists open patient requests on any booking until handled, whatever its call state (PRD §14)', () => {
+    const request = (
+      id: string,
+      bookingId: string,
+      over: Partial<PatientRequestRow> = {},
+    ): PatientRequestRow => ({
+      id,
+      bookingId,
+      patientId: 'linked',
+      kind: 'reschedule',
+      status: 'open',
+      handledBy: null,
+      ...meta,
+      ...over,
+    });
+    const items = callList(
+      [
+        booking('next-week', at('2026-11-23', 9)),
+        booking('tomorrow', at('2026-11-17', 9), { patientId: 'phoneOnly', callHandledAt: NOW }),
+        booking('past', NOW - 60_000),
+        booking('cancelled', at('2026-11-20', 9), { status: 'cancelled' }),
+        booking('quiet', at('2026-11-24', 9)),
+        booking('next-week', at('2026-11-23', 9)),
+      ],
+      patients,
+      NOW,
+      [
+        request('r1', 'next-week'),
+        request('r2', 'next-week', { kind: 'cancel' }),
+        request('r3', 'tomorrow', { kind: 'cancel' }),
+        request('r4', 'past'),
+        request('r5', 'cancelled'),
+        request('r6', 'quiet', { status: 'handled' }),
+        request('r7', 'quiet', { deletedAt: 5 }),
+      ],
+    );
+    // Requests on a past or cancelled booking stay until handled; handled or deleted ones go.
+    expect(items.map((i) => [i.booking.id, i.reasons, i.requests.map((r) => r.id)])).toEqual([
+      ['past', ['rescheduleRequest'], ['r4']],
+      ['tomorrow', ['cancelRequest'], ['r3']],
+      ['cancelled', ['rescheduleRequest'], ['r5']],
+      ['next-week', ['rescheduleRequest', 'cancelRequest'], ['r1', 'r2']],
+    ]);
   });
 
   it('reads bookings from now to the end of tomorrow', () => {

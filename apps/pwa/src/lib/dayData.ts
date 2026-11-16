@@ -88,9 +88,15 @@ export function useCallList(): CallItem[] | undefined {
   return useLive(async () => {
     const now = Date.now();
     const [from, to] = callListRange(now);
-    const bookings = await db.bookings.where('startAt').between(from, to).toArray();
+    const near = await db.bookings.where('startAt').between(from, to).toArray();
+    // Open patient requests are listed whatever their booking's date (PRD §14).
+    const requests = live(await db.patientRequests.where('status').equals('open').toArray());
+    const asked = (await db.bookings.bulkGet(requests.map((r) => r.bookingId))).filter(
+      (b) => b !== undefined,
+    );
+    const bookings = [...near, ...asked];
     const patients = await db.patients.bulkGet([...new Set(bookings.map((b) => b.patientId))]);
-    return callList(bookings, new Map(patients.flatMap((p) => (p ? [[p.id, p]] : []))), now);
+    return callList(bookings, new Map(patients.flatMap((p) => (p ? [[p.id, p]] : []))), now, requests);
   }, [minute]);
 }
 

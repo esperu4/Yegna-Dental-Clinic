@@ -6,7 +6,17 @@
  */
 import { type SQL, and, eq, gt, gte, inArray, sql } from 'drizzle-orm';
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
-import { blocks, bookings, dayRules, holidays, patients, procedures, settings, users } from '@yegna/db';
+import {
+  blocks,
+  bookings,
+  dayRules,
+  holidays,
+  patientRequests,
+  patients,
+  procedures,
+  settings,
+  users,
+} from '@yegna/db';
 import {
   PULL_PAGE_SIZE,
   type PullEntity,
@@ -106,6 +116,16 @@ const COLUMNS = {
     defaultTemplate: settings.defaultTemplate,
     ...meta(settings),
   },
+  // Few rows (one per patient tap), so every one is sent, like procedures.
+  patientRequests: {
+    id: patientRequests.id,
+    bookingId: patientRequests.bookingId,
+    patientId: patientRequests.patientId,
+    kind: patientRequests.kind,
+    status: patientRequests.status,
+    handledBy: patientRequests.handledBy,
+    ...meta(patientRequests),
+  },
   // Names and roles only (PRD §7.1): never PIN hashes, chat ids or preferences.
   users: { id: users.id, name: users.name, role: users.role, disabledAt: users.disabledAt, ...meta(users) },
 } as const;
@@ -161,6 +181,12 @@ export async function pull(
     // A pull from cursor 0 is always a first fill, whatever the device says.
     if (entity === 'bookings' && (initial || cursor === 0)) {
       conditions.push(gte(bookings.startAt, bookingWindowStart(now)));
+    }
+    // A new device needs only open patient requests. Only on the very first page (cursor 0, one
+    // snapshot): on later pages of a first fill a request it already holds may have been handled,
+    // and that change must reach it.
+    if (entity === 'patientRequests' && cursor === 0) {
+      conditions.push(eq(patientRequests.status, 'open'));
     }
     return conditions;
   };
