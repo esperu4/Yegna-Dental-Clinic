@@ -213,19 +213,14 @@ describe('enrolment', () => {
     expect(row!.locks).toBe(0);
   });
 
-  it('refuses a short PIN for the Doctor on reset, but allows it for Staff', async () => {
+  it('resets a Staff PIN (4 digits allowed); the Doctor’s own PIN changes only through /me/pin', async () => {
     const doctor = await setupDoctor(call);
     const staff = await addStaff(call, doctor.token, 'Hana', '4731');
     const self = await call('PATCH', `/admin/users/${doctor.user.id}`, {
       token: doctor.token,
-      body: { pin: '6142' },
-    });
-    expect(self.status).toBe(400);
-    const ok = await call('PATCH', `/admin/users/${doctor.user.id}`, {
-      token: doctor.token,
       body: { pin: '614273' },
     });
-    expect(ok.status).toBe(200);
+    expect(self.status).toBe(400);
     expect(
       (await call('PATCH', `/admin/users/${staff}`, { token: doctor.token, body: { pin: '6142' } })).status,
     ).toBe(200);
@@ -389,5 +384,59 @@ describe('CORS and configuration', () => {
   it('refuses to run a deployed environment that trusts localhost', async () => {
     const res = await caller({ ...env, ENVIRONMENT: 'staging' })('GET', '/health');
     expect(res.status).toBe(500);
+  });
+});
+
+describe('changing one’s own PIN (POST /me/pin)', () => {
+  it('needs the current PIN, signs out the other phones, and the new PIN works', async () => {
+    const doctor = await setupDoctor(call);
+    const second = await enrol('Dr. Selam', '258014');
+    expect(second.status).toBe(201);
+    const wrong = await call('POST', '/me/pin', {
+      token: doctor.token,
+      body: { currentPin: '000000', pin: '582914' },
+    });
+    expect(wrong.status).toBe(401);
+    const ok = await call('POST', '/me/pin', {
+      token: doctor.token,
+      body: { currentPin: '258014', pin: '582914' },
+    });
+    expect(ok.status).toBe(200);
+    // The other phone is signed out; this one keeps working.
+    expect((await call('GET', '/me', { token: second.json.token as string })).status).toBe(401);
+    expect((await call('GET', '/me', { token: doctor.token })).status).toBe(200);
+    expect((await enrol('Dr. Selam', '258014')).status).toBe(401);
+    expect((await enrol('Dr. Selam', '582914')).status).toBe(201);
+  });
+
+  it('keeps the Doctor’s PIN at 6 digits, refuses trivial PINs, and is rate-limited', async () => {
+    const doctor = await setupDoctor(call);
+    const short = await call('POST', '/me/pin', {
+      token: doctor.token,
+      body: { currentPin: '258014', pin: '5829' },
+    });
+    expect(short.status).toBe(400);
+    const trivial = await call('POST', '/me/pin', {
+      token: doctor.token,
+      body: { currentPin: '258014', pin: '123456' },
+    });
+    expect(trivial.status).toBe(400);
+    let last = 0;
+    for (let i = 0; i < 12; i++) {
+      last = (
+        await call('POST', '/me/pin', { token: doctor.token, body: { currentPin: '000000', pin: '582914' } })
+      ).status;
+    }
+    expect(last).toBe(429);
+  });
+
+  it('the admin route cannot change one’s own PIN (a device token alone is not enough)', async () => {
+    const doctor = await setupDoctor(call);
+    const res = await call('PATCH', `/admin/users/${doctor.user.id}`, {
+      token: doctor.token,
+      body: { pin: '582914' },
+    });
+    expect(res.status).toBe(400);
+    expect(res.json.error).toBe('cannot_change_self');
   });
 });

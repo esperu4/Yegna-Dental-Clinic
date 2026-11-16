@@ -52,6 +52,10 @@ export const updateUserRequest = z
   .refine((v) => Object.keys(v).length > 0, 'empty');
 export type UpdateUserRequest = z.infer<typeof updateUserRequest>;
 
+/** Changing one's own PIN: the current PIN is required (privacy review 2026-11-16). */
+export const changePinRequest = z.object({ currentPin: pinSchema, pin: newPinSchema });
+export type ChangePinRequest = z.infer<typeof changePinRequest>;
+
 export const updateMeRequest = z
   .object({ locale: z.enum(LOCALES).optional(), calendar: z.enum(CALENDARS).optional() })
   .refine((v) => Object.keys(v).length > 0, 'empty');

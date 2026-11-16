@@ -131,17 +131,32 @@ export function createSession(deps: { db?: YegnaDb; fetchImpl?: typeof fetch; no
   }
 
   /**
-   * The signed-in Doctor changes their own PIN (online): the current PIN is checked on the device
-   * first, then the server stores the new one, then this phone's unlock check is replaced. Other
-   * phones keep unlocking with the old PIN until they sign in again (their check is local).
+   * Change one's own PIN (online). Wrong current PINs count toward the same local lockout as the
+   * lock screen; the server checks the current PIN too (and rate-limits it). On success the
+   * server signs out this account's other phones, and this phone's unlock check is replaced.
    */
-  async function changePin(currentPin: string, nextPin: string): Promise<'ok' | 'wrong'> {
+  async function changePin(currentPin: string, nextPin: string): Promise<UnlockResult> {
+    const lock = (await store.getMeta<LocalLock>('localLock')) ?? { failures: 0, lockedUntil: null };
+    const t = now();
+    if (lock.lockedUntil && lock.lockedUntil > t)
+      return { ok: false, reason: 'locked', retryAfterMs: lock.lockedUntil - t };
     const verifier = await store.getMeta<PinVerifier>('pinVerifier');
-    if (!verifier || !(await checkVerifier(currentPin, verifier))) return 'wrong';
-    const me = current.value!.user.id;
-    await authed(`/admin/users/${me}`, { method: 'PATCH', body: { pin: nextPin } });
+    if (!verifier || !(await checkVerifier(currentPin, verifier))) {
+      const failures = (lock.lockedUntil && lock.lockedUntil <= t ? 0 : lock.failures) + 1;
+      if (failures >= LOCAL_MAX_FAILURES) {
+        await store.setMeta('localLock', {
+          failures: 0,
+          lockedUntil: t + LOCAL_LOCKOUT_MS,
+        } satisfies LocalLock);
+        return { ok: false, reason: 'locked', retryAfterMs: LOCAL_LOCKOUT_MS };
+      }
+      await store.setMeta('localLock', { failures, lockedUntil: null } satisfies LocalLock);
+      return { ok: false, reason: 'wrong', left: LOCAL_MAX_FAILURES - failures };
+    }
+    await authed('/me/pin', { body: { currentPin, pin: nextPin } });
     await store.setMeta('pinVerifier', await makeVerifier(nextPin));
-    return 'ok';
+    await store.setMeta('localLock', { failures: 0, lockedUntil: null } satisfies LocalLock);
+    return { ok: true };
   }
 
   /** Record use. Call on interactions; writes at most once a minute. */

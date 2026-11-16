@@ -116,6 +116,9 @@ admin.patch('/users/:id', async (c) => {
     .get();
   if (!target) return fail(c, 404, 'not_found');
   if (id === session.user.id && body.disabled !== undefined) return fail(c, 400, 'cannot_change_self');
+  // One's own PIN changes only through POST /me/pin, which asks for the current PIN: a stolen
+  // device token must not be enough to take the account over.
+  if (id === session.user.id && body.pin) return fail(c, 400, 'cannot_change_self');
   if (body.pin && target.role === 'doctor' && !doctorPinSchema.safeParse(body.pin).success) {
     return fail(c, 400, 'bad_request');
   }

@@ -159,10 +159,14 @@ describe('changing my own PIN', () => {
       return path === '/enrol' ? { status: 201, body: enrolled } : { status: 200, body: {} };
     });
     await s.enrol({ name: 'Hana', pin: '4731', deviceLabel: 'x' });
-    expect(await s.changePin('0000', '582914')).toBe('wrong');
-    expect(calls.filter((c) => c.method === 'PATCH')).toHaveLength(0);
-    expect(await s.changePin('4731', '582914')).toBe('ok');
-    expect(calls.at(-1)).toEqual({ path: '/admin/users/u1', method: 'PATCH', body: { pin: '582914' } });
+    expect(await s.changePin('0000', '582914')).toEqual({ ok: false, reason: 'wrong', left: 4 });
+    expect(calls.filter((c) => c.path === '/me/pin')).toHaveLength(0);
+    expect(await s.changePin('4731', '582914')).toEqual({ ok: true });
+    expect(calls.at(-1)).toEqual({
+      path: '/me/pin',
+      method: 'POST',
+      body: { currentPin: '4731', pin: '582914' },
+    });
     s.status.value = 'locked';
     expect(await s.unlock('4731')).toMatchObject({ ok: false, reason: 'wrong' });
     expect(await s.unlock('582914')).toEqual({ ok: true });

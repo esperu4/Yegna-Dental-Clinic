@@ -110,7 +110,7 @@ export function ReaderStatus() {
   );
 }
 
-/** The Doctor's own PIN (6 digits, ADR 0005); Staff PINs are reset by the Doctor in Staff accounts. */
+/** One's own PIN (the Doctor's is 6 digits, ADR 0005); the Doctor can also reset Staff PINs. */
 export function ChangeMyPin() {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState('');
@@ -128,12 +128,21 @@ export function ChangeMyPin() {
   function save(e: Event) {
     e.preventDefault();
     setMessage(null);
-    if (!/^\d{6}$/.test(next)) return setError(t('error.doctorPinFormat'));
+    const doctor = session.current.value?.user.role === 'doctor';
+    if (doctor ? !/^\d{6}$/.test(next) : !/^\d{4,6}$/.test(next)) {
+      return setError(t(doctor ? 'error.doctorPinFormat' : 'error.pinFormat'));
+    }
     if (next !== repeat) return setError(t('error.pinMismatch'));
     if (isTrivialPin(next)) return setError(t('error.pinTrivial'));
     void run(async () => {
       const result = await session.changePin(current, next);
-      if (result === 'wrong') throw new Error(t('settings.changePin.wrong'));
+      if (!result.ok) {
+        throw new Error(
+          result.reason === 'locked'
+            ? t('settings.changePin.locked', { minutes: Math.ceil(result.retryAfterMs / 60_000) })
+            : t('settings.changePin.wrong'),
+        );
+      }
       setOpen(false);
       setCurrent('');
       setNext('');

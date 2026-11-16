@@ -36,7 +36,7 @@ export function Settings() {
         <NotificationsSetting />
         {isDoctor ? <MessageTimes /> : null}
         {isDoctor ? <ReaderStatus /> : null}
-        {isDoctor ? <ChangeMyPin /> : null}
+        <ChangeMyPin />
 
         {isDoctor ? (
           <div class="row-group">

@@ -40,7 +40,17 @@ test('screens for design review', async ({ page }) => {
   await page.getByRole('button', { name: 'New booking' }).click();
   await page.getByLabel('Phone').pressSequentially('0911', { delay: 30 });
   await shot('04-booking-sheet');
-  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.locator('.booking').filter({ hasText: 'Abebe Kebede' }).click();
+  await shot('04b-booking-details');
+  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Week' }).click();
+  await shot('04c-week');
+  await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Day' }).click();
+  await page.goto('/#/patients');
+  await shot('04d-patients');
+  await page.getByRole('button', { name: /Abebe Kebede/ }).click();
+  await shot('04e-patient-profile');
   await page.goto('/#/settings');
   await shot('05-settings');
   await page.goto('/#/calls');

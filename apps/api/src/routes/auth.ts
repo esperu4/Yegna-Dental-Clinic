@@ -2,12 +2,14 @@
  * First-doctor setup, device enrolment and the current user (PRD §8 item 1).
  * Setup needs the one-time SETUP_CODE secret (docs/adr/0005-first-doctor-setup-code.md).
  */
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import { type Context, Hono } from 'hono';
 import { devices, users } from '@yegna/db';
 import {
   type EnrolResponse,
   type SessionUser,
+  changePinRequest,
+  doctorPinSchema,
   enrolRequest,
   normalizeName,
   setupRequest,
@@ -181,4 +183,61 @@ auth.patch('/me', requireDevice, async (c) => {
       .where(eq(users.id, session.user.id)),
   ]);
   return c.json({ ...session, user: { ...session.user, ...body } });
+});
+
+/**
+ * Change one's own PIN (Settings). The current PIN is checked on the server and counted against
+ * the same limits as enrolment (per name and per IP), so a stolen device token alone cannot set a
+ * new PIN. On success every other phone of this account is signed out (it wipes itself), so an old
+ * PIN that someone saw no longer opens any phone.
+ */
+auth.post('/me/pin', requireDevice, async (c) => {
+  const body = await parseBody(c, changePinRequest);
+  if (!body) return fail(c, 400, 'bad_request');
+  const db = c.get('db');
+  const session = c.get('session');
+  const now = Date.now();
+  if (session.user.role === 'doctor' && !doctorPinSchema.safeParse(body.pin).success) {
+    return fail(c, 400, 'bad_request');
+  }
+  const key = await enrolKeyForName(session.user.name);
+  const ip = await ipKey(c);
+  const attempt = await takeAttempt(
+    db,
+    [
+      { key, max: LIMITS.name },
+      { key: ip, max: LIMITS.ip },
+    ],
+    now,
+  );
+  if (!attempt.ok) return fail(c, 429, 'locked', { retryAfterMs: attempt.retryAfterMs });
+  if (attempt.lockedNow.length) await auditLockout(db, attempt.lockedNow, now);
+
+  const me = await db.select().from(users).where(eq(users.id, session.user.id)).get();
+  if (!me?.pinHash || !me.pinSalt || !(await verifyPin(body.currentPin, me.pinHash, me.pinSalt))) {
+    return fail(c, 401, 'invalid_credentials');
+  }
+  const pin = await hashPin(body.pin);
+  await db.batch([
+    bumpVersion(db),
+    db
+      .update(users)
+      .set({
+        pinHash: pin.hash,
+        pinSalt: pin.salt,
+        version: CURRENT_VERSION,
+        updatedAt: now,
+        updatedBy: session.user.id,
+      })
+      .where(eq(users.id, session.user.id)),
+    db
+      .update(devices)
+      .set({ revokedAt: now })
+      .where(
+        and(eq(devices.userId, session.user.id), ne(devices.id, session.deviceId), isNull(devices.revokedAt)),
+      ),
+    auditInsert(db, session, 'users', session.user.id, 'pin_change', { pin: 'changed' }, now),
+  ]);
+  await attemptSucceeded(db, [key], [ip], attempt.ticket);
+  return c.json({ ok: true });
 });
