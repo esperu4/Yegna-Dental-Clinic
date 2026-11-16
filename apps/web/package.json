@@ -7,11 +7,14 @@
     "dev": "astro dev",
     "build": "astro build",
     "typecheck": "astro check",
-    "test": "echo \"web: no unit tests yet\"",
-    "deploy:staging": "astro build && wrangler deploy --env staging"
+    "test": "astro build && node scripts/budget.mjs",
+    "deploy:staging": "astro build && wrangler deploy --env staging",
+    "budget": "node scripts/budget.mjs"
   },
   "dependencies": {
-    "astro": "^7.4.8"
+    "astro": "^7.4.8",
+    "@yegna/shared": "workspace:*",
+    "@yegna/time": "workspace:*"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",

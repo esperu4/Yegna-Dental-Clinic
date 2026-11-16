@@ -1,0 +1,14 @@
+---
+import Base from '../layouts/Base.astro';
+import { TEXT, pathOf } from '../lib/site';
+---
+
+<Base locale="am" page={null} title={`${TEXT.notFound.am} · ${TEXT.notFound.en}`} description={TEXT.notFound.en}>
+  <section class="intro">
+    <h1>{TEXT.notFound.am} · <span lang="en">{TEXT.notFound.en}</span></h1>
+    <p class="actions">
+      <a class="button primary" href={pathOf('am', 'home')}>{TEXT.backHome.am}</a>
+      <a class="button" href={pathOf('en', 'home')} lang="en">{TEXT.backHome.en}</a>
+    </p>
+  </section>
+</Base>

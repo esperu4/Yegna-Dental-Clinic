@@ -1,0 +1,19 @@
+/*
+ * Design tokens shared by the website and the PWA (PRD §15): deep green for text (WCAG AA on
+ * white and on the light-green surfaces), light green for surfaces and accents only.
+ */
+:root {
+  --yd-bg: #ffffff;
+  --yd-surface: #f3f8f4;
+  --yd-surface-glass: rgb(227 242 233 / 0.72);
+  --yd-fg: #10241a;
+  --yd-muted: #3f5548;
+  --yd-line: #d5e3d9;
+  --yd-brand: #1f7a4d;
+  --yd-brand-deep: #135c38;
+  --yd-brand-fg: #ffffff;
+  --yd-brand-soft: #e3f2e9;
+  --yd-glow: rgb(92 194 143 / 0.35);
+  --yd-radius: 14px;
+  --yd-font: 'Noto Sans Ethiopic', 'Nyala', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}

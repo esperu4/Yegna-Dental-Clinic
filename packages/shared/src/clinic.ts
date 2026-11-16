@@ -24,6 +24,8 @@ export const CLINIC = {
   } satisfies Text,
   /** For "Open in Google Maps" and the bot's location pin. */
   geo: { latitude: 9.0415, longitude: 38.7625 },
+  /** The Yegna Dental patient bot's @username (PRD §14, §22 #8). */
+  patientBot: 'YegnaDentalBot',
   /** E.164; the first is the main line (tap-to-call). */
   phones: ['+251110000000'],
   /** Opening hours as published (JSON-LD, website); the bot shows the live weekly hours. */
@@ -52,6 +54,8 @@ export const CLINIC = {
 export function mapsUrl(geo: { latitude: number; longitude: number } = CLINIC.geo): string {
   return `https://www.google.com/maps/search/?api=1&query=${geo.latitude},${geo.longitude}`;
 }
+
+export const telegramUrl = (username: string = CLINIC.patientBot) => `https://t.me/${username}`;
 
 /** `+251 11 000 0000` style, for display. */
 export function displayPhone(e164: string): string {

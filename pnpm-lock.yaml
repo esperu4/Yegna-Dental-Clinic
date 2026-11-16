@@ -258,6 +258,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@yegna/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@yegna/time':
+        specifier: workspace:*
+        version: link:../../packages/time
       astro:
         specifier: ^7.4.8
         version: 7.4.8(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)

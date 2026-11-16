@@ -1,0 +1,126 @@
+---
+/**
+ * Every page (PRD §15): title and description, canonical + hreflang, the Dentist JSON-LD, header
+ * and footer, and the calls to action (sticky tap-to-call on phones, the Telegram bot link).
+ * No JavaScript: the only scripts are structured data.
+ */
+import '@yegna/shared/tokens.css';
+import '../styles/site.css';
+import { CLINIC, displayPhone, mapsUrl, telegramUrl } from '@yegna/shared';
+import ToothMark from '../components/ToothMark.astro';
+import { type Locale, type Page, NAV, PAGES, TEXT, pathOf } from '../lib/site';
+
+interface Props {
+  locale: Locale;
+  page: Page | null;
+  title: string;
+  description: string;
+  /** Extra structured data (e.g. FAQPage). */
+  jsonLd?: Record<string, unknown>;
+}
+const { locale, page, title, description, jsonLd } = Astro.props;
+const site = Astro.site!;
+const here = page ?? 'home';
+const url = (l: Locale) => new URL(pathOf(l, here), site).href;
+const other: Locale = locale === 'am' ? 'en' : 'am';
+const phone = CLINIC.phones[0];
+
+const dentist = {
+  '@context': 'https://schema.org',
+  '@type': 'Dentist',
+  name: CLINIC.name[locale],
+  alternateName: CLINIC.name[other],
+  legalName: CLINIC.legalName,
+  url: new URL(pathOf(locale, 'home'), site).href,
+  telephone: phone,
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: CLINIC.address[locale],
+    addressLocality: 'Addis Ababa',
+    addressCountry: 'ET',
+  },
+  geo: { '@type': 'GeoCoordinates', latitude: CLINIC.geo.latitude, longitude: CLINIC.geo.longitude },
+  openingHoursSpecification: [
+    {
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+      opens: CLINIC.openingHours.opens,
+      closes: CLINIC.openingHours.closes,
+    },
+  ],
+  sameAs: [telegramUrl()],
+};
+// Staging and previews stay out of search engines until the real domain is live.
+const indexable = import.meta.env.PUBLIC_INDEXABLE === '1';
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {indexable && page ? null : <meta name="robots" content="noindex" />}
+    {
+      page ? (
+        <>
+          <link rel="canonical" href={url(locale)} />
+          <link rel="alternate" hreflang="am" href={url('am')} />
+          <link rel="alternate" hreflang="en" href={url('en')} />
+          <link rel="alternate" hreflang="x-default" href={url('am')} />
+        </>
+      ) : null
+    }
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={url(locale)} />
+    <meta property="og:locale" content={locale === 'am' ? 'am_ET' : 'en_US'} />
+    <meta name="theme-color" content="#1f7a4d" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(dentist)} />
+    {jsonLd ? <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} /> : null}
+  </head>
+  <body>
+    <a class="skip" href="#main">{TEXT.skip[locale]}</a>
+    <header class="top">
+      <a class="brand" href={pathOf(locale, 'home')}>
+        <ToothMark />
+        <span>{CLINIC.name[locale]}</span>
+      </a>
+      <nav aria-label={TEXT.mainNav[locale]}>
+        <ul>
+          {
+            PAGES.filter((p) => p !== 'home').map((p) => (
+              <li>
+                <a href={pathOf(locale, p)} aria-current={p === page ? 'page' : undefined}>
+                  {NAV[p][locale]}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+      <a class="lang" href={pathOf(other, here)} hreflang={other} lang={other}>{TEXT.otherLanguage[locale]}</a>
+    </header>
+
+    <main id="main">
+      <slot />
+    </main>
+
+    <footer class="foot">
+      <div>
+        <strong>{CLINIC.name[locale]}</strong>
+        <p>{CLINIC.address[locale]}</p>
+        <p><a href={`tel:${phone}`}>{displayPhone(phone)}</a></p>
+      </div>
+      <div>
+        <p><a href={mapsUrl()} rel="noopener">{TEXT.maps[locale]}</a></p>
+        <p><a href={telegramUrl()} rel="noopener">{TEXT.telegram[locale]}</a></p>
+      </div>
+    </footer>
+
+    <a class="call-bar" href={`tel:${phone}`}>{TEXT.callLong[locale]} · {displayPhone(phone)}</a>
+  </body>
+</html>
