@@ -105,7 +105,15 @@ async function recordAnswers(body: ArrayBuffer) {
   }
 }
 
-const stats = { runs: 0, ops: 0, dropped: 0, lostResponses: 0, outcomes: {} as Record<string, number> };
+const stats = {
+  runs: 0,
+  ops: 0,
+  dropped: 0,
+  lostResponses: 0,
+  requestsMade: 0,
+  requestsHandled: 0,
+  outcomes: {} as Record<string, number>,
+};
 
 /** Network latency: usually a few ms, sometimes a slow answer (so responses overtake each other). */
 const jitter = (device: Device) =>
@@ -247,6 +255,8 @@ let phoneSeq = 0;
 interface RunRecord {
   written: { device: Device; op: SyncOp }[];
   patientIds: Set<string>;
+  /** Patient requests the "patient bot" made on this run's bookings (server-side). */
+  requestIds: Set<string>;
   dayStart: number;
   dayEnd: number;
   runStart: number;
@@ -267,6 +277,7 @@ async function runSimulation(world: World, run: number, seed: number) {
   const record: RunRecord = {
     written: [],
     patientIds: new Set(),
+    requestIds: new Set(),
     dayStart,
     dayEnd: dayStart + DAY_MS,
     runStart: Date.now(),
@@ -286,6 +297,16 @@ async function runSimulation(world: World, run: number, seed: number) {
     const bookings = (await db.bookings.where('startAt').between(dayStart, record.dayEnd).toArray()).filter(
       (b) => b.deletedAt === null,
     );
+    const open = (await db.patientRequests.bulkGet([...record.requestIds])).filter(
+      (r) => r !== undefined && r.deletedAt === null && r.status === 'open',
+    );
+    // Mark handled from the call list; other phones may not have seen it handled yet, so the
+    // same request is often marked twice.
+    if (open.length && chance(0.15)) {
+      const id = pick(open)!.id;
+      stats.requestsHandled++;
+      return () => sync.write('patientRequests', 'update', { status: 'handled' }, id);
+    }
     const roll = rng();
     if (roll < 0.2 || patients.length === 0) {
       const phone = `+251911${String(++phoneSeq).padStart(6, '0')}`;
@@ -342,8 +363,44 @@ async function runSimulation(world: World, run: number, seed: number) {
     return () => sync.write('patients', 'delete', {}, id);
   }
 
+  /**
+   * The patient bot (server-side, no device): a patient asks to reschedule or cancel one of the
+   * run's bookings, or the server touches a request (a new version under the phones' feet).
+   */
+  async function patientBot() {
+    const { DB } = world.env;
+    const known = [...record.requestIds];
+    if (known.length && chance(0.3)) {
+      await DB.batch([
+        DB.prepare('UPDATE sync_seq SET value = value + 1 WHERE id = 1'),
+        DB.prepare(
+          'UPDATE patient_requests SET version = (SELECT value FROM sync_seq WHERE id = 1) WHERE id = ?',
+        ).bind(pick(known)),
+      ]);
+      return;
+    }
+    const rows = (
+      await DB.prepare('SELECT id, patient_id FROM bookings WHERE start_at >= ? AND start_at < ?')
+        .bind(dayStart, record.dayEnd)
+        .all<{ id: string; patient_id: string }>()
+    ).results;
+    if (!rows.length) return;
+    const booking = pick(rows);
+    const id = uuidv7();
+    await DB.batch([
+      DB.prepare('UPDATE sync_seq SET value = value + 1 WHERE id = 1'),
+      DB.prepare(
+        `INSERT INTO patient_requests (id, booking_id, patient_id, kind, status, version, updated_at)
+         VALUES (?, ?, ?, ?, 'open', (SELECT value FROM sync_seq WHERE id = 1), ?)`,
+      ).bind(id, booking.id, booking.patient_id, pick(['reschedule', 'cancel']), Date.now()),
+    ]);
+    record.requestIds.add(id);
+    stats.requestsMade++;
+  }
+
   const steps = STEPS_PER_RUN.min + Math.floor(rng() * (STEPS_PER_RUN.max - STEPS_PER_RUN.min + 1));
   for (let step = 0; step < steps; step++) {
+    if (chance(0.12)) await patientBot();
     const device = pick(devices);
     const roll = rng();
     if (roll < 0.25) {
@@ -431,8 +488,11 @@ async function expectOneWinner(env: ServerEnv, run: RunRecord) {
  */
 async function checkDevice(device: Device, run: RunRecord) {
   const { db } = device;
-  await db.transaction('r', db.outbox, db.patients, db.bookings, async () => {
+  await db.transaction('r', db.outbox, db.patients, db.bookings, db.patientRequests, async () => {
     const rows = [
+      ...(await db.patientRequests.bulkGet([...run.requestIds])).flatMap((r) =>
+        r ? [['patientRequests', r] as const] : [],
+      ),
       ...(await db.patients.bulkGet([...run.patientIds])).flatMap((r) =>
         r ? [['patients', r] as const] : [],
       ),
@@ -625,6 +685,33 @@ async function checkRun({ env, devices }: World, run: RunRecord) {
     }
   }
 
+  // Patient requests: every device holds the server's row, and a request marked handled by several
+  // phones keeps the first one that reached the server.
+  const serverRequests = await selectIn<{
+    id: string;
+    status: string;
+    handled_by: string | null;
+    version: number;
+  }>(env, (m) => `SELECT id, status, handled_by, version FROM patient_requests WHERE id IN (${m})`, [
+    ...run.requestIds,
+  ]);
+  for (const r of serverRequests) {
+    const first = await env.DB.prepare(
+      "SELECT user_id FROM audit_log WHERE entity = 'patient_requests' AND entity_id = ? AND action = 'update' ORDER BY rowid LIMIT 1",
+    )
+      .bind(r.id)
+      .first<{ user_id: string }>();
+    expect(r.handled_by, `request ${r.id} handled by the first to mark it`).toBe(first?.user_id ?? null);
+    expect(r.status).toBe(first ? 'handled' : 'open');
+    for (const d of devices) {
+      const mine = await d.db.patientRequests.get(r.id);
+      expect(
+        mine && { status: mine.status, handledBy: mine.handledBy, version: mine.version },
+        `${d.label} request ${r.id}`,
+      ).toEqual({ status: r.status, handledBy: r.handled_by, version: r.version });
+    }
+  }
+
   // Every device holds the very same rows, every field (not only those compared with the server).
   const snapshot = async (d: Device) => {
     const strip = ({ provisional, ...row }: { provisional?: boolean; id: string }) => {
@@ -634,6 +721,9 @@ async function checkRun({ env, devices }: World, run: RunRecord) {
     return {
       bookings: (await d.db.bookings.where('startAt').between(dayStart, dayEnd).sortBy('id')).map(strip),
       patients: (await d.db.patients.bulkGet([...run.patientIds].sort())).map((p) => (p ? strip(p) : null)),
+      patientRequests: (await d.db.patientRequests.bulkGet([...run.requestIds].sort())).map((r) =>
+        r ? strip(r) : null,
+      ),
     };
   };
   const [first, ...others] = await Promise.all(devices.map(snapshot));
@@ -672,5 +762,6 @@ describe('randomized multi-device sync: coverage', () => {
     expect(stats.outcomes.clash ?? 0, 'clashes').toBeGreaterThan(0);
     expect(stats.outcomes.needs_fixing ?? 0, 'bookings that need fixing').toBeGreaterThan(0);
     expect(stats.outcomes.rejected ?? 0, 'refused ops').toBeGreaterThan(0);
+    expect(stats.requestsHandled, 'patient requests marked handled').toBeGreaterThan(0);
   });
 });

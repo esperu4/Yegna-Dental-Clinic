@@ -26,6 +26,14 @@ import { showSyncNotification } from './syncNotification.ts';
 import { SummaryBuilder, type SyncSummary, somethingHappened } from './syncStatus.ts';
 import { type Session, session as defaultSession } from './session.ts';
 
+/**
+ * The server sent an entity this app version cannot store: the app must update (reopen) before
+ * it can sync again. Nothing is lost meanwhile: the response is not applied and the cursor stays.
+ */
+export class UpdateNeededError extends Error {
+  override name = 'UpdateNeededError';
+}
+
 /** One change for `writeMany`. */
 export interface WriteChange {
   entity: WriteEntity;
@@ -269,7 +277,12 @@ export function createSync(
       channel?.postMessage({ type: 'synced' });
       report();
     } catch (err) {
-      const code = err instanceof ApiError ? err.code : 'server_error';
+      const code =
+        err instanceof ApiError
+          ? err.code
+          : err instanceof UpdateNeededError
+            ? 'update_needed'
+            : 'server_error';
       // A 401 has already wiped the device (session.authed); nothing is left to sync.
       if (err instanceof ApiError && err.status === 401) state.value = 'idle';
       else state.value = code === 'offline' ? 'offline' : 'error';
@@ -353,6 +366,9 @@ export function createSync(
       }
 
       for (const entity of Object.keys(res.changes) as PullEntity[]) {
+        // An entity this app does not know yet (a newer server): fail the whole response, so the
+        // cursor stays before those rows and the updated app pulls them (nothing skipped).
+        if (!(PULL_ENTITIES as readonly string[]).includes(entity)) throw new UpdateNeededError();
         const table = store.entity(entity);
         for (const serverRow of res.changes[entity] ?? []) {
           const key = rowKey(entity, serverRow);
@@ -438,17 +454,25 @@ export function createSync(
    */
   async function pruneOldBookings(): Promise<void> {
     const cutoff = bookingWindowStart(now());
-    await store.transaction('rw', store.bookings, store.outbox, store.notices, async () => {
-      const old = await store.bookings.where('startAt').below(cutoff).primaryKeys();
-      if (old.length === 0) return;
-      const pending = new Set(
-        (await store.outbox.toArray()).filter((e) => e.op.entity === 'bookings').map((e) => e.op.entityId),
-      );
-      const dropped = new Set(old.filter((id) => !pending.has(id)));
-      await store.bookings.bulkDelete([...dropped]);
-      // Their clash or needs-fixing notices can no longer be acted on.
-      await store.notices.filter((n) => n.entity === 'bookings' && dropped.has(n.entityId)).delete();
-    });
+    await store.transaction(
+      'rw',
+      [store.bookings, store.outbox, store.notices, store.patientRequests],
+      async () => {
+        const old = await store.bookings.where('startAt').below(cutoff).primaryKeys();
+        if (old.length === 0) return;
+        const pending = new Set(
+          (await store.outbox.toArray()).filter((e) => e.op.entity === 'bookings').map((e) => e.op.entityId),
+        );
+        // A booking an open patient request points to stays: the call list shows it until handled.
+        for (const r of await store.patientRequests.where('status').equals('open').toArray()) {
+          if (r.deletedAt == null) pending.add(r.bookingId);
+        }
+        const dropped = new Set(old.filter((id) => !pending.has(id)));
+        await store.bookings.bulkDelete([...dropped]);
+        // Their clash or needs-fixing notices can no longer be acted on.
+        await store.notices.filter((n) => n.entity === 'bookings' && dropped.has(n.entityId)).delete();
+      },
+    );
   }
 
   /** Keep syncing while the app is open: every 30 s, when back online and when shown (PRD §7.3). */

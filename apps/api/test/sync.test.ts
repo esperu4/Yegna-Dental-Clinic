@@ -656,6 +656,142 @@ describe('POST /sync: permissions (PRD §9)', () => {
   });
 });
 
+describe('POST /sync: patient requests (PRD §8 item 8, §14)', () => {
+  /** A request as the patient bot makes it: server-side, with the next version. */
+  async function request(kind: 'reschedule' | 'cancel' = 'reschedule') {
+    const p = newPatient(staff);
+    const b = newBooking(doctor, p.entityId, nextMonday(9));
+    await sync(staff, [p]);
+    await sync(doctor, [b]);
+    const id = uuidv7();
+    await env.DB.batch([
+      env.DB.prepare('UPDATE sync_seq SET value = value + 1 WHERE id = 1'),
+      env.DB.prepare(
+        `INSERT INTO patient_requests (id, booking_id, patient_id, kind, status, version, updated_at)
+         VALUES (?, ?, ?, ?, 'open', (SELECT value FROM sync_seq WHERE id = 1), 0)`,
+      ).bind(id, b.entityId, p.entityId, kind),
+    ]);
+    return { id, bookingId: b.entityId, patientId: p.entityId };
+  }
+  const handled = (as: EnrolResponse, id: string, over: Partial<SyncOp> = {}) =>
+    op(as, 'patientRequests', 'update', { status: 'handled' }, { entityId: id, ...over });
+
+  it('pulls open requests to every device; a new device gets only open ones', async () => {
+    const done = await request();
+    await sync(staff, [handled(staff, done.id)]);
+    const r = await request('cancel');
+    const { json } = await sync(doctor, []);
+    expect(json.changes.patientRequests).toEqual([
+      expect.objectContaining({
+        id: r.id,
+        bookingId: r.bookingId,
+        kind: 'cancel',
+        status: 'open',
+        handledBy: null,
+      }),
+    ]);
+    // A device past the first fill still hears that a request was handled.
+    const later = await sync(doctor, [handled(doctor, r.id)], json.newCursor);
+    expect(later.json.changes.patientRequests).toEqual([
+      expect.objectContaining({ id: r.id, status: 'handled' }),
+    ]);
+  });
+
+  it('tells a device in the middle of its first fill that a request it holds was handled', async () => {
+    const r = await request();
+    const db = getDb(env.DB);
+    // Page 1 of a first fill (small pages): the open request arrives.
+    let cursor = 0;
+    let holds = false;
+    for (let more = true; more && !holds;) {
+      const page = await pull(db, cursor, Date.now(), { initial: true, pageSize: 2 });
+      holds = (page.changes.patientRequests ?? []).some((x) => x.id === r.id);
+      ({ more } = page);
+      cursor = page.newCursor;
+    }
+    expect(holds).toBe(true);
+    // Handled on another phone before this device's fill is done: the later page carries it.
+    await sync(doctor, [handled(doctor, r.id)]);
+    const next = await pull(db, cursor, Date.now(), { initial: true, pageSize: 500 });
+    expect(next.changes.patientRequests).toEqual([expect.objectContaining({ id: r.id, status: 'handled' })]);
+  });
+
+  it('lets Staff or the Doctor mark one handled, recording who, with a new version', async () => {
+    const r = await request();
+    const before = (await sync(staff, [])).json.newCursor;
+    const { json } = await sync(staff, [handled(staff, r.id)], before);
+    expect(json.results[0]).toMatchObject({ outcome: 'applied' });
+    expect(json.changes.patientRequests).toEqual([
+      expect.objectContaining({
+        id: r.id,
+        status: 'handled',
+        handledBy: staff.user.id,
+        updatedBy: staff.user.id,
+      }),
+    ]);
+    const version = json.changes.patientRequests![0]!.version;
+    expect(version).toBeGreaterThan(before);
+    // The Doctor taps too (another phone, not yet synced): applied, and Staff stays who handled it.
+    const again = await sync(doctor, [handled(doctor, r.id)], version);
+    expect(again.json.results[0]).toMatchObject({ outcome: 'applied' });
+    expect(again.json.changes.patientRequests![0]).toMatchObject({
+      status: 'handled',
+      handledBy: staff.user.id,
+    });
+  });
+
+  it('is idempotent by opId', async () => {
+    const r = await request();
+    const o = handled(staff, r.id);
+    const first = (await sync(staff, [o])).json.results[0];
+    const second = (await sync(staff, [o])).json.results[0];
+    expect(second).toEqual(first);
+    const { n } = (await env.DB.prepare(
+      "SELECT count(*) AS n FROM audit_log WHERE entity = 'patient_requests' AND entity_id = ?",
+    )
+      .bind(r.id)
+      .first()) as { n: number };
+    expect(n).toBe(1);
+  });
+
+  it('refuses an unknown request, and anything but marking handled', async () => {
+    const r = await request();
+    const { json } = await sync(staff, [
+      handled(staff, uuidv7()),
+      op(staff, 'patientRequests', 'update', { status: 'open' }, { entityId: r.id }),
+      op(
+        staff,
+        'patientRequests',
+        'update',
+        { status: 'handled', handledBy: doctor.user.id },
+        { entityId: r.id },
+      ),
+      op(staff, 'patientRequests', 'create', {
+        bookingId: r.bookingId,
+        patientId: r.patientId,
+        kind: 'cancel',
+        status: 'open',
+      }),
+      op(doctor, 'patientRequests', 'delete', {}, { entityId: r.id, userId: staff.user.id }),
+    ]);
+    expect(json.results.map((x) => (x.outcome === 'rejected' ? x.reason : x.outcome))).toEqual([
+      'not_found',
+      'invalid',
+      'invalid',
+      'invalid',
+      'invalid',
+    ]);
+    const row = await env.DB.prepare('SELECT status FROM patient_requests WHERE id = ?').bind(r.id).first();
+    expect(row).toEqual({ status: 'open' });
+  });
+
+  it('still closes the request of a patient the Doctor deleted (ADR 0007)', async () => {
+    const r = await request();
+    await sync(doctor, [op(doctor, 'patients', 'delete', {}, { entityId: r.patientId })]);
+    expect((await sync(staff, [handled(staff, r.id)])).json.results[0]).toMatchObject({ outcome: 'applied' });
+  });
+});
+
 describe('POST /sync: bookings (PRD §6, §7.4, §10)', () => {
   async function patient(as = staff) {
     const p = newPatient(as);

@@ -11,7 +11,16 @@
  * per-invocation limit.
  */
 import { type SQL, and, count, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
-import { bookings, importRows, imports, patients, procedures, syncOps, syncSeq } from '@yegna/db';
+import {
+  bookings,
+  importRows,
+  imports,
+  patientRequests,
+  patients,
+  procedures,
+  syncOps,
+  syncSeq,
+} from '@yegna/db';
 import {
   type CallOutcome,
   type OpResult,
@@ -91,6 +100,7 @@ const SQL_NAMES: Record<WriteEntity, { table: string; key: string }> = {
   blocks: { table: 'blocks', key: 'id' },
   holidays: { table: 'holidays', key: 'id' },
   settings: { table: 'settings', key: 'id' },
+  patientRequests: { table: 'patient_requests', key: 'id' },
 };
 
 const SETTINGS_DEFAULTS = {
@@ -199,7 +209,9 @@ export async function applyOp(ctx: OpContext, op: SyncOp): Promise<OpResult | nu
     const decision =
       op.entity === 'bookings'
         ? await decideBooking(ctx, op, fields, reads, role)
-        : decideRow(ctx, op, fields, reads.current);
+        : op.entity === 'patientRequests'
+          ? decideRequestHandled(ctx, op, reads.current)
+          : decideRow(ctx, op, fields, reads.current);
     if ('reject' in decision) return storeRejection(ctx, op, decision.reject, fields, decision.redact);
     const result = await commit(ctx, op, fields, decision);
     if (result !== 'lost_race') return result;
@@ -391,6 +403,38 @@ function decideRow(ctx: OpContext, op: SyncOp, fields: Row, current: Row | undef
     ],
     action: live ? 'update' : 'create',
     diff: { ...diffOf(live ? current : undefined, fields), ...staleMark(op, current) },
+  };
+}
+
+/**
+ * A patient request marked handled from the call list (PRD §8 item 8, §14): by the Doctor or
+ * Staff, also for an erased patient (it only closes the request). The only op devices may send
+ * for requests (`parseOpFields`). Marking one already handled is applied again but keeps who
+ * handled it first, so two phones tapping at once both succeed and nobody is overwritten.
+ */
+function decideRequestHandled(ctx: OpContext, op: SyncOp, current: Row | undefined): Decision {
+  if (!current || current.deletedAt !== null) return reject('not_found');
+  const handledBy = (current.handledBy as string | null) ?? ctx.session.user.id;
+  return {
+    statements: [
+      ctx.db
+        .update(patientRequests)
+        .set({
+          status: 'handled',
+          handledBy,
+          version: CURRENT_VERSION,
+          updatedAt: ctx.now,
+          updatedBy: ctx.session.user.id,
+        } as never)
+        .where(
+          and(
+            eq(patientRequests.id, current.id as string),
+            eq(patientRequests.version, current.version as number),
+          ),
+        ),
+    ],
+    action: 'update',
+    diff: { ...diffOf(current, { status: 'handled', handledBy }), ...staleMark(op, current) },
   };
 }
 

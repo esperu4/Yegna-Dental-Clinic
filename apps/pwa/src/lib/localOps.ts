@@ -98,5 +98,7 @@ export function applyLocally(current: object | undefined, op: SyncOp, role: Role
     }
     if (op.fields.status === 'approved') Object.assign(next, { approvedBy: op.userId, approvedAt: op.at });
   }
+  // A patient request marked handled keeps who handled it first, like the server.
+  if (op.entity === 'patientRequests') next.handledBy = row.handledBy ?? op.userId;
   return next as never;
 }

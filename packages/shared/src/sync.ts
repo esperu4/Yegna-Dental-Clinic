@@ -186,6 +186,12 @@ const FIELDS: Record<WriteEntity, FieldSchemas> = {
   holidays: { create: holidayFields, update: nonEmptyPartial(holidayFields), delete: true },
   // The singleton row: create and update both upsert it; it cannot be deleted.
   settings: { create: settingsFields, update: nonEmptyPartial(settingsFields), delete: false },
+  // Made by the patient bot; a device can only mark one handled (the server records by whom).
+  patientRequests: {
+    create: null,
+    update: z.object({ status: z.literal('handled') }).strict(),
+    delete: false,
+  },
 };
 
 function nonEmptyPartial<T extends z.ZodObject>(schema: T) {
@@ -211,6 +217,7 @@ const ENTITY_IDS: Record<WriteEntity, (id: string) => boolean> = {
   blocks: isUuidv7,
   holidays: isUuidv7,
   settings: (id) => id === SETTINGS_ID,
+  patientRequests: isUuidv7,
 };
 
 const opSchema = z

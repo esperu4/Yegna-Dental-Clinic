@@ -53,6 +53,7 @@ export class YegnaDb extends Dexie {
   blocks!: Table<LocalRow<'blocks'>, string>;
   holidays!: Table<LocalRow<'holidays'>, string>;
   settings!: Table<LocalRow<'settings'>, string>;
+  patientRequests!: Table<LocalRow<'patientRequests'>, string>;
   users!: Table<LocalRow<'users'>, string>;
 
   constructor(name = 'yegna') {
@@ -74,6 +75,10 @@ export class YegnaDb extends Dexie {
     });
     // Approvals read pending bookings by start time (PRD §8 item 7).
     this.version(3).stores({ bookings: 'id, startAt, patientId, [status+startAt]' });
+    // Patient requests from the patient bot, for the call list (PRD §14). No re-pull is needed:
+    // the server sent no requests before this version (none existed: the patient bot came after),
+    // and an app without this table fails any pull holding one, so its cursor never moved past it.
+    this.version(4).stores({ patientRequests: 'id, status' });
   }
 
   entity<E extends PullEntity>(entity: E): Table<LocalRow<E>, string> {
