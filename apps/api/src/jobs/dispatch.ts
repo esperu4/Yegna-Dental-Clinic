@@ -9,6 +9,7 @@ import { meterD1 } from '../lib/queryMeter.ts';
 import { type Notifier, telegramNotifier } from '../notify/notifier.ts';
 import { type BackupDeps, nightlyBackup, weeklyCsv } from './backup.ts';
 import { PATIENT_JOBS, type PatientJobContext } from './patient.ts';
+import { type UsageDeps, usageAlerts } from './usage.ts';
 import {
   type JobContext,
   approvalDigests,
@@ -44,6 +45,8 @@ export async function runHourly(
   patientNotifier?: Notifier,
   /** Tests: a fake Google Drive for the nightly backup. */
   backupDrive?: BackupDeps['drive'],
+  /** Tests: a fake Cloudflare GraphQL API for the usage check. */
+  usageFetch?: UsageDeps['fetch'],
 ): Promise<void> {
   const meter = meterD1(env.DB);
   const db = getDb(meter.d1);
@@ -56,11 +59,25 @@ export async function runHourly(
     team !== null,
     { d1: meter.d1, env, ...(backupDrive ? { drive: backupDrive } : {}) },
   );
-  if (team) await runTeamJobs({ db, meter, notifier: team, now, local, pwaUrl: env.PWA_ORIGIN });
+  const teamCtx: JobContext | null = team
+    ? { db, meter, notifier: team, now, local, pwaUrl: env.PWA_ORIGIN }
+    : null;
+  if (teamCtx) await runTeamJobs(teamCtx);
   else console.warn('cron', 'team bot not configured; team jobs skipped');
 
   const patient = patientNotifier ?? (env.PATIENT_BOT_TOKEN ? telegramNotifier(env.PATIENT_BOT_TOKEN) : null);
   if (patient) await runPatientJobs({ db, meter, notifier: patient, now, local });
+
+  // Last: the usage check (one outside call) must never crowd out messages to patients.
+  if (teamCtx) await runUsage(teamCtx, { env, ...(usageFetch ? { fetch: usageFetch } : {}) });
+}
+
+async function runUsage(ctx: JobContext, deps: UsageDeps) {
+  try {
+    await usageAlerts(ctx, await linkedTeam(ctx.db), deps);
+  } catch (err) {
+    console.error('cron_job_failed', 'usage', err instanceof Error ? err.name : 'unknown');
+  }
 }
 
 /** Sends nothing: the backup's failure alert when there is no team bot. */

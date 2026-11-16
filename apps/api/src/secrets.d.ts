@@ -20,6 +20,9 @@ interface Env {
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   GOOGLE_REFRESH_TOKEN?: string;
+  /** Free-tier usage alert (PRD §19): the Cloudflare account id and an Account Analytics Read token. */
+  CF_ACCOUNT_ID?: string;
+  CF_ANALYTICS_TOKEN?: string;
   /** Free schedule readers (ADR 0009); each is used only when its key is set. */
   MISTRAL_API_KEY?: string;
   GROQ_API_KEY?: string;
