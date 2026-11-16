@@ -21,7 +21,7 @@ D1 Time Travel (7 days) covers mistakes within a week, but not losing the Cloudf
 2. **Drive.** The upload uses an OAuth refresh token of the clinic's own Google account, scope `drive.file`, so the app sees only the files it made.
    - Files are tagged with an `appProperties` marker and their date, and listing only ever touches those.
    - The refresh token is put into a Worker secret by `pnpm google-auth`, without being shown on screen.
-3. **Retention.** After each upload, keep the newest 30 backups of that environment, plus every backup made on the 1st of a month for `MONTHLY_KEEP_MONTHS` (forever, as in the PRD, until the clinic decides; see Consequences). Delete the rest. Files are tagged with their environment, and production uses its own Google project, so environments never touch each other's backups. A retention failure only logs and does not mark the backup failed.
+3. **Retention.** After each upload, keep the newest 30 backups of that environment, plus every backup made on the 1st of a month for `MONTHLY_KEEP_MONTHS` = **12 months** (project owner, 2026-11-16; the PRD said indefinitely). Delete the rest. Files are tagged with their environment, and production uses its own Google project, so environments never touch each other's backups. A retention failure only logs and does not mark the backup failed.
 4. **When.** From 02:00 local, once a day (`notification_log` kind `backup`). A failure is retried every hour until it succeeds that day, and the Doctor is told once per day through the team bot. The backup runs first in the hourly cron, and does not need the team bot.
 5. **CPU and budget.** The export is a single invocation: about 18 queries, then one JSON, gzip and encrypt pass, which fits a small clinic's data within the Workers limits. If it ever fails on CPU time, the Doctor's failure alert shows it, and the fix is the PRD's split: one table per invocation, joined on Drive.
 6. **Weekly CSV.** On Sunday from 21:00, once, two files go to each Doctor via the team bot's `sendDocument`:
@@ -43,7 +43,7 @@ D1 Time Travel (7 days) covers mistakes within a week, but not losing the Cloudf
 
 ## Consequences
 
-- Erased patients (ADR 0007) remain in backups made before the erasure: for 30 days in the nightly ones, and **for as long as the 1st-of-month backups are kept**, which the PRD says is indefinitely. This needs the clinic's decision (keep them all, or limit them, e.g. to 12 months).
+- Erased patients (ADR 0007) remain in backups made before the erasure: up to 30 days in the nightly ones and up to 12 months in the 1st-of-month ones, then they are gone from every backup.
 - The weekly CSVs (with notes) stay in the Doctor's Telegram history, outside the encryption and outside ADR 0007 erasure (PRD §17.3 asks for them).
 - After a production restore, every phone signs in again, and the patient bot is paused until staff have checked the bookings (runbook).
 - Losing `BACKUP_KEY` makes every backup unreadable: the paper copy matters. Rotating the key makes older backups need the old key.

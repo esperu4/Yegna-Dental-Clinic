@@ -85,10 +85,10 @@ export const backupName = (environment: string, localDate: string) =>
   `yegna-backup-${environment}-${localDate}.ydb`;
 
 /**
- * 1st-of-month backups are kept this many months. PRD §17 says "indefinitely"; erased patients
- * (ADR 0007) stay in them that long, so the clinic decides (ADR 0012). Infinity = forever.
+ * 1st-of-month backups are kept this many months (decided by the project owner 2026-11-16, ADR
+ * 0012): a year of history, after which an erased patient (ADR 0007) is gone from every backup.
  */
-export const MONTHLY_KEEP_MONTHS = Number.POSITIVE_INFINITY;
+export const MONTHLY_KEEP_MONTHS = 12;
 
 /**
  * Which backups to delete (PRD §17): keep the newest `keep` nightly ones, and backups made on the

@@ -131,7 +131,7 @@ describe('backup file (PRD §17)', () => {
       const d = new Date(Date.UTC(2026, 0, 1) + i * 86_400_000).toISOString().slice(0, 10);
       return { id: d, date: d };
     });
-    const gone = expiredBackups(files);
+    const gone = expiredBackups(files, 30, Number.POSITIVE_INFINITY);
     expect(gone).toHaveLength(70 - 30 - 2); // Jan 1 and Feb 1 are older than the last 30, kept
     expect(gone).not.toContain('2026-01-01');
     expect(gone).not.toContain('2026-02-01');
@@ -234,9 +234,9 @@ describe('nightly backup job (PRD §16, §17)', () => {
     const mine = drive.files.filter((f) => f.date === today);
     expect(mine).toHaveLength(1);
     expect(mine[0]!.name).toBe(`yegna-backup-local-${today}.ydb`);
-    // 30 newest kept (today + 29 old) plus 2025-11-01.
-    expect(drive.files).toHaveLength(31);
-    expect(drive.files.some((f) => f.date === '2025-11-01')).toBe(true);
+    // 30 newest kept (today + 29 old); 2025-11-01 is a 1st-of-month backup older than 12 months.
+    expect(drive.files).toHaveLength(30);
+    expect(drive.files.some((f) => f.date === '2025-11-01')).toBe(false);
     const data = await decodeBackup(mine[0]!.content, await importKey(KEY));
     expect(data.tables.patients).toHaveLength(1);
     expect(telegram.sent).toHaveLength(0);
