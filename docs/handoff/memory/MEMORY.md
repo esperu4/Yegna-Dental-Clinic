@@ -1,8 +1,0 @@
-- [Clinic owner account](clinic-owner-account.md) — clinic Gmail owns all services; repo moves to an org only after the build (do not raise again)
-- [M1 progress](m1-progress.md) — where M1 stands and the exact resume steps (unpushed commit, setup code, log check)
-- [Work style](work-style.md) — build autonomously, best-practice quality, toast notifications when input needed
-- [Ask interactively](ask-interactively.md) — clinic decisions via AskUserQuestion, not text lists
-- [M2 progress](m2-progress.md) — M2 offline plan/status; M1 awaits user demo
-- [M3 progress](m3-progress.md) — M3 done + staging bot live; awaiting approve-from-Telegram check + sign-off; design pass later
-- [M4 AI provider](m4-ai-provider.md) — free readers only (Workers AI, Mistral OCR, Groq, OpenRouter; Gemini free last; manual); relax accuracy target if needed
-- [M4 progress](m4-progress.md) — M4 goals 1–5; goal 3 finishing; golden set from sample images (no user photos)
