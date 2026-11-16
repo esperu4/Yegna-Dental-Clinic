@@ -24,6 +24,11 @@ export function Welcome() {
   return (
     <Screen title={t('app.name')}>
       {session.notice.value === 'revoked' ? <p class="banner warn">{t('error.revoked')}</p> : null}
+      <div class="welcome-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1.4">
+          <path d="M10 4c-4 0-6 3-6 7 0 5 2 7 3 11 1 4 2 6 3.5 6s2-3 2.5-6c.4-2 1.2-3 3-3s2.6 1 3 3c.5 3 1 6 2.5 6s2.5-2 3.5-6c1-4 3-6 3-11 0-4-2-7-6-7-2.5 0-3.6 1.2-6 1.2S12.5 4 10 4Z" />
+        </svg>
+      </div>
       <p class="lead">{t('welcome.title')}</p>
       <button type="button" class="primary" onClick={() => setMode('enrol')}>
         {t('welcome.enrol')}

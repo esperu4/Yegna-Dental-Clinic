@@ -1022,3 +1022,55 @@ a.button {
 .booking .small {
   color: var(--muted);
 }
+
+/* Call list: calling is the action; the outcomes have equal weight. */
+.list li.call-card {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: start;
+}
+.call-card a.button.call-now {
+  width: 100%;
+  justify-content: center;
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--brand-fg);
+  font-weight: 600;
+  text-decoration: none;
+}
+.outcomes {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+}
+.outcomes button {
+  padding: 0 6px;
+}
+/* Welcome: the clinic's mark above the choice. */
+.welcome-mark {
+  color: var(--brand);
+  padding-top: 24px;
+}
+.welcome-mark + .lead {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+/* Settings: the Doctor's pages as one grouped list. */
+.row-group {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.row-group .row {
+  border: none;
+  border-radius: 0;
+  justify-content: space-between;
+}
+.row-group .row + .row {
+  border-top: 1px solid var(--line);
+}

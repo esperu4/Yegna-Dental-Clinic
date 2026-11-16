@@ -58,7 +58,7 @@ export function Calls() {
           const { booking, patient, reasons } = item;
           const { date, minutes } = utcToLocal(booking.startAt);
           return (
-            <li class="stack">
+            <li class="stack call-card">
               <span>
                 <strong>{patient?.name ?? '…'}</strong>
                 <span class="muted small">
@@ -76,20 +76,15 @@ export function Calls() {
                   {t('calls.tried', { time: formatInstant(booking.callTriedAt) })}
                 </span>
               ) : null}
-              <div class="actions">
-                {patient ? (
-                  <a class="button" href={`tel:${patient.phoneE164}`}>
-                    {t('action.call')} {formatPhone(patient.phoneE164)}
-                  </a>
-                ) : null}
+              {patient ? (
+                <a class="button primary call-now" href={`tel:${patient.phoneE164}`}>
+                  {t('action.call')} {formatPhone(patient.phoneE164)}
+                </a>
+              ) : null}
+              <div class="outcomes">
                 {reasons.includes('noTelegram') ? (
                   <>
-                    <button
-                      type="button"
-                      class="primary"
-                      disabled={busy}
-                      onClick={() => record(booking, 'confirmed')}
-                    >
+                    <button type="button" disabled={busy} onClick={() => record(booking, 'confirmed')}>
                       {t('calls.confirmed')}
                     </button>
                     <button type="button" disabled={busy} onClick={() => record(booking, 'no_answer')}>

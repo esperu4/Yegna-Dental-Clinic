@@ -28,13 +28,15 @@ export function Settings() {
         <TelegramLink />
         {isDoctor ? <PatientBotConnect /> : null}
 
-        {isDoctor
-          ? DOCTOR_LINKS.map(([to, label]) => (
+        {isDoctor ? (
+          <div class="row-group">
+            {DOCTOR_LINKS.map(([to, label]) => (
               <button type="button" class="row" onClick={() => go(to)}>
                 {t(label)} ›
               </button>
-            ))
-          : null}
+            ))}
+          </div>
+        ) : null}
 
         <button
           type="button"
