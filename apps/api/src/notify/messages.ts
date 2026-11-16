@@ -129,6 +129,30 @@ export function clashAlert(r: Recipient, b: BookingLine, pwaUrl: string): Outgoi
   };
 }
 
+/** A patient tapped "Need to reschedule" or "Cancel" in the patient bot (PRD §13, §14): call them. */
+export function patientRequestAlert(
+  r: Recipient,
+  b: BookingLine,
+  kind: 'reschedule' | 'cancel',
+  pwaUrl: string,
+): OutgoingMessage {
+  return {
+    text:
+      kind === 'reschedule'
+        ? say(
+            r,
+            `🔁 ታካሚው ቀኑን መቀየር ይፈልጋል፦ ${line(r, b, true)} — እባክዎ ይደውሉለት።`,
+            `🔁 Patient asks to reschedule: ${line(r, b, true)} — please call them.`,
+          )
+        : say(
+            r,
+            `❌ ታካሚው መሰረዝ ይፈልጋል፦ ${line(r, b, true)} — እባክዎ ይደውሉለት።`,
+            `❌ Patient asks to cancel: ${line(r, b, true)} — please call them.`,
+          ),
+    buttons: [[openApp(r, `${pwaUrl}/#/calls`, 'የስልክ ዝርዝር ክፈት', 'Open call list')]],
+  };
+}
+
 export function tomorrowSummary(
   r: Recipient,
   localDate: string,

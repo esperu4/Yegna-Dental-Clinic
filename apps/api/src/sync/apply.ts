@@ -107,7 +107,14 @@ const reject = (reason: SyncRejectReason): Decision => ({ reject: reason });
  * What a deleted patient's row keeps: nothing that identifies them. The phone becomes free for a
  * new patient (the unique index covers live patients only, migration 0003).
  */
-const ERASED_PATIENT = { name: '', phoneE164: '', note: null, telegramChatId: null, telegramLinkedAt: null };
+const ERASED_PATIENT = {
+  name: '',
+  phoneE164: '',
+  note: null,
+  telegramChatId: null,
+  telegramLinkedAt: null,
+  telegramLocale: null,
+};
 
 /**
  * Everything else that could identify a deleted patient (ADR 0007): their bookings' notes and cancel
@@ -126,6 +133,10 @@ function erasePatientTraces(patientId: string, ctx: OpContext) {
       WHERE entity = 'bookings' AND diff IS NOT NULL AND ${landed}
         AND (entity_id IN (SELECT id FROM bookings WHERE patient_id = ${patientId})
           OR json_extract(diff, '$.fields.patientId') = ${patientId})`,
+    // Which Telegram chat was told about which booking (patient bot, M5).
+    sql`DELETE FROM notification_log
+      WHERE kind IN ('patient_confirm', 'patient_reminder', 'patient_cancel') AND ${landed}
+        AND substr(booking_id, 1, 36) IN (SELECT id FROM bookings WHERE patient_id = ${patientId})`,
     sql`UPDATE bookings
       SET note = NULL, cancel_reason = NULL, version = ${CURRENT_VERSION},
           updated_at = ${ctx.now}, updated_by = ${ctx.session.user.id}
@@ -361,12 +372,21 @@ function decideRow(ctx: OpContext, op: SyncOp, fields: Row, current: Row | undef
       diff: diffOf(undefined, fields),
     };
   }
+  // A patient's new phone number ends their Telegram link: the chat belonged to the old number
+  // (e.g. a mistyped one that a stranger linked). They link again with the right one (PRD §14).
+  const unlink =
+    op.entity === 'patients' &&
+    live &&
+    fields.phoneE164 !== undefined &&
+    fields.phoneE164 !== current.phoneE164
+      ? { telegramChatId: null, telegramLinkedAt: null, telegramLocale: null }
+      : {};
   // Update, an upsert onto an existing key, or reviving a deleted day rule.
   return {
     statements: [
       db
         .update(table)
-        .set({ ...encode(op.entity, live ? fields : merged), ...stamp, deletedAt: null } as never)
+        .set({ ...encode(op.entity, live ? fields : merged), ...unlink, ...stamp, deletedAt: null } as never)
         .where(unchanged),
     ],
     action: live ? 'update' : 'create',

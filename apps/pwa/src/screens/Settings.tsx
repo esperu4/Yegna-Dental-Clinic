@@ -2,6 +2,7 @@
  * Settings (PRD §8 item 12). Everyone: language, calendar, sign out. The Doctor also: procedures,
  * clinic hours, Staff accounts, phones, and the setup steps again.
  */
+import { PatientBotConnect } from '../components/PatientBotConnect.tsx';
 import { TelegramLink } from '../components/TelegramLink.tsx';
 import { PreferencesPicker } from '../components/clinicConfig.tsx';
 import { Screen } from '../components/ui.tsx';
@@ -25,6 +26,7 @@ export function Settings() {
       <section class="stack">
         <PreferencesPicker />
         <TelegramLink />
+        {isDoctor ? <PatientBotConnect /> : null}
 
         {isDoctor
           ? DOCTOR_LINKS.map(([to, label]) => (

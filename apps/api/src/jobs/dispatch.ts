@@ -7,6 +7,7 @@ import { utcToLocal } from '@yegna/time';
 import { getDb } from '../lib/db.ts';
 import { meterD1 } from '../lib/queryMeter.ts';
 import { type Notifier, telegramNotifier } from '../notify/notifier.ts';
+import { PATIENT_JOBS, type PatientJobContext } from './patient.ts';
 import {
   type JobContext,
   approvalDigests,
@@ -30,21 +31,29 @@ const TEAM_JOBS = [
   ['housekeeping', housekeeping],
 ] as const;
 
-export async function runHourly(env: Env, now = Date.now(), notifier?: Notifier): Promise<void> {
-  const send = notifier ?? (env.TEAM_BOT_TOKEN ? telegramNotifier(env.TEAM_BOT_TOKEN) : null);
-  if (!send) {
-    console.warn('cron', 'team bot not configured; team jobs skipped');
-    return;
-  }
+/**
+ * `teamNotifier` / `patientNotifier` replace the bots in tests; otherwise each bot's jobs run only
+ * when its token is set.
+ */
+export async function runHourly(
+  env: Env,
+  now = Date.now(),
+  teamNotifier?: Notifier,
+  patientNotifier?: Notifier,
+): Promise<void> {
   const meter = meterD1(env.DB);
-  const ctx: JobContext = {
-    db: getDb(meter.d1),
-    meter,
-    notifier: send,
-    now,
-    local: utcToLocal(now),
-    pwaUrl: env.PWA_ORIGIN,
-  };
+  const db = getDb(meter.d1);
+  const local = utcToLocal(now);
+
+  const team = teamNotifier ?? (env.TEAM_BOT_TOKEN ? telegramNotifier(env.TEAM_BOT_TOKEN) : null);
+  if (team) await runTeamJobs({ db, meter, notifier: team, now, local, pwaUrl: env.PWA_ORIGIN });
+  else console.warn('cron', 'team bot not configured; team jobs skipped');
+
+  const patient = patientNotifier ?? (env.PATIENT_BOT_TOKEN ? telegramNotifier(env.PATIENT_BOT_TOKEN) : null);
+  if (patient) await runPatientJobs({ db, meter, notifier: patient, now, local });
+}
+
+async function runTeamJobs(ctx: JobContext) {
   let team;
   try {
     team = await linkedTeam(ctx.db);
@@ -57,6 +66,16 @@ export async function runHourly(env: Env, now = Date.now(), notifier?: Notifier)
       await job(ctx, team);
     } catch (err) {
       // The job's name and the error type only (PRD §18: no patient data in logs).
+      console.error('cron_job_failed', name, err instanceof Error ? err.name : 'unknown');
+    }
+  }
+}
+
+async function runPatientJobs(ctx: PatientJobContext) {
+  for (const [name, job] of PATIENT_JOBS) {
+    try {
+      await job(ctx);
+    } catch (err) {
       console.error('cron_job_failed', name, err instanceof Error ? err.name : 'unknown');
     }
   }

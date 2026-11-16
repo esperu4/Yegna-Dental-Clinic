@@ -133,9 +133,13 @@ export const patients = sqliteTable(
     note: text('note'),
     telegramChatId: text('telegram_chat_id'),
     telegramLinkedAt: integer('telegram_linked_at'),
+    /** The language the patient chose in the Yegna Dental bot (PRD §14); messages use it. */
+    telegramLocale: text('telegram_locale', { enum: ['am', 'en'] }),
     ...syncable,
   },
   (t) => [
+    // The patient bot looks the patient up by chat at every update (PRD §14).
+    index('patients_telegram_chat_idx').on(t.telegramChatId),
     // Unique among live patients only: a deleted patient is erased and its number can be reused
     // (docs/adr/0007-erase-deleted-patients-and-needs-fixing.md).
     uniqueIndex('patients_phone_uq')

@@ -21,3 +21,6 @@ CLOUDFLARE_*.txt
 
 # e2e
 .e2e-state/
+
+# Claude Code agent worktrees
+.claude/worktrees/

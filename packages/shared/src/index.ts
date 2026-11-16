@@ -10,3 +10,4 @@ export * from './syncTypes.ts';
 export * from './sync.ts';
 export * from './sheetId.ts';
 export * from './importMatch.ts';
+export * from './clinic.ts';

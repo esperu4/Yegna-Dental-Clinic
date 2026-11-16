@@ -16,8 +16,10 @@ import {
   type SyncResponse,
   syncRequestSchema,
 } from '@yegna/shared';
+import { utcToLocal } from '@yegna/time';
 import { type AppEnv, fail, parseBody } from '../lib/http.ts';
 import { requireDevice } from '../lib/session.ts';
+import { patientCancellations, patientConfirmations } from '../jobs/patient.ts';
 import { clashAlerts, linkedTeam } from '../jobs/team.ts';
 import { telegramNotifier } from '../notify/notifier.ts';
 import { MAX_QUERIES_PER_OP, applyOp, prefetch } from '../sync/apply.ts';
@@ -29,6 +31,8 @@ const MAX_BODY_BYTES = 512 * 1024;
 const PULL_RESERVE = 2;
 /** Queries a clash alert needs at least (team, bookings, one delivery). */
 const CLASH_ALERT_MIN_QUERIES = 6;
+/** Queries patient messages need at least (two reads, one delivery). */
+const PATIENT_MESSAGE_MIN_QUERIES = 6;
 const DAY_MS = 86_400_000;
 /** A throttled device sends only pulls for this long, then tries its ops again. */
 const THROTTLE_RETRY_MS = 60 * 60_000;
@@ -85,26 +89,39 @@ sync.post(
       ? mergeChanges(page.changes, await currentRows(db, refused))
       : page.changes;
 
-    // Clash alerts to the creator and the Doctor (PRD §13 "on sync"), after the response, within
-    // what is left of this request's query budget; the hourly run sends any that don't fit.
-    const clashed = body.ops
-      .slice(0, results.length)
-      .filter((_, i) => results[i]!.outcome === 'clash')
+    // After the response, one after the other within what is left of this request's query budget
+    // (so two senders never overspend it together); the hourly run sends whatever does not fit.
+    const applied = (outcome: OpResult['outcome']) =>
+      body.ops.slice(0, results.length).filter((_, i) => results[i]!.outcome === outcome);
+    // Clash alerts to the creator and the Doctor (PRD §13 "on sync").
+    const clashed = applied('clash').map((op) => op.entityId);
+    // Patient confirmations and cancellation notices (PRD §14) for bookings this sync changed;
+    // only approved (or told-then-cancelled) bookings qualify, see jobs/patient.ts.
+    const touched = applied('applied')
+      .filter((op) => op.entity === 'bookings')
       .map((op) => op.entityId);
-    if (clashed.length && c.env.TEAM_BOT_TOKEN && meter.remaining() >= CLASH_ALERT_MIN_QUERIES) {
-      const token = c.env.TEAM_BOT_TOKEN;
-      const now = Date.now();
-      const send = linkedTeam(db)
-        .then((team) =>
-          clashAlerts(
-            { db, meter, notifier: telegramNotifier(token), now, pwaUrl: c.env.PWA_ORIGIN },
-            team,
-            clashed,
-          ),
-        )
-        .catch((err: unknown) =>
-          console.error('clash_alert_failed', err instanceof Error ? err.name : 'unknown'),
+    const teamToken = c.env.TEAM_BOT_TOKEN;
+    const patientToken = c.env.PATIENT_BOT_TOKEN;
+    const now = Date.now();
+    const after = async () => {
+      if (clashed.length && teamToken && meter.remaining() >= CLASH_ALERT_MIN_QUERIES) {
+        const team = await linkedTeam(db);
+        await clashAlerts(
+          { db, meter, notifier: telegramNotifier(teamToken), now, pwaUrl: c.env.PWA_ORIGIN },
+          team,
+          clashed,
         );
+      }
+      if (touched.length && patientToken && meter.remaining() >= PATIENT_MESSAGE_MIN_QUERIES) {
+        const ctx = { db, meter, notifier: telegramNotifier(patientToken), now, local: utcToLocal(now) };
+        await patientConfirmations(ctx, touched);
+        await patientCancellations(ctx, touched);
+      }
+    };
+    if ((clashed.length && teamToken) || (touched.length && patientToken)) {
+      const send = after().catch((err: unknown) =>
+        console.error('after_sync_messages_failed', err instanceof Error ? err.name : 'unknown'),
+      );
       try {
         c.executionCtx.waitUntil(send);
       } catch {
