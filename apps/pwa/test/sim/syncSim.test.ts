@@ -379,8 +379,12 @@ async function runSimulation(world: World, run: number, seed: number) {
       ]);
       return;
     }
-    const rows = (
-      await DB.prepare('SELECT id, patient_id FROM bookings WHERE start_at >= ? AND start_at < ?')
+    const rows = // Like the real bot: only a live patient can ask (an erased patient's chat is unlinked).
+    (
+      await DB.prepare(
+        `SELECT b.id, b.patient_id FROM bookings b JOIN patients p ON p.id = b.patient_id
+          WHERE p.deleted_at IS NULL AND b.start_at >= ? AND b.start_at < ?`,
+      )
         .bind(dayStart, record.dayEnd)
         .all<{ id: string; patient_id: string }>()
     ).results;
@@ -696,8 +700,14 @@ async function checkRun({ env, devices }: World, run: RunRecord) {
     ...run.requestIds,
   ]);
   for (const r of serverRequests) {
+    // The first to close it: a phone marking it handled, or the deletion of its patient (erasing a
+    // patient closes their open requests, ADR 0007 / 0011).
     const first = await env.DB.prepare(
-      "SELECT user_id FROM audit_log WHERE entity = 'patient_requests' AND entity_id = ? AND action = 'update' ORDER BY rowid LIMIT 1",
+      `SELECT user_id FROM audit_log
+        WHERE (entity = 'patient_requests' AND entity_id = ?1 AND action = 'update')
+           OR (entity = 'patients' AND action = 'delete'
+               AND entity_id = (SELECT patient_id FROM patient_requests WHERE id = ?1))
+        ORDER BY rowid LIMIT 1`,
     )
       .bind(r.id)
       .first<{ user_id: string }>();
