@@ -28,4 +28,9 @@ export default tseslint.config(
     files: ['**/*.{js,mjs}', '**/scripts/**', '**/test/**', '**/*.config.ts', '.claude/**'],
     languageOptions: { globals: globals.node },
   },
+  {
+    // Command-line scripts report on stdout (no patient data: they run on fixtures and counts).
+    files: ['**/scripts/**'],
+    rules: { 'no-console': 'off' },
+  },
 );

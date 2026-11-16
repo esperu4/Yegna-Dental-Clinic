@@ -1,0 +1,115 @@
+{
+  "image": "06-C-am2.jpg",
+  "mime": "image/jpeg",
+  "template": "C",
+  "locale": "am",
+  "procedures": [
+    {
+      "code": "CL",
+      "name": "ማጽዳት"
+    },
+    {
+      "code": "EX",
+      "name": "መንቀል"
+    },
+    {
+      "code": "FL",
+      "name": "መሙላት"
+    },
+    {
+      "code": "CH",
+      "name": "ምርመራ"
+    }
+  ],
+  "expected": {
+    "sheetId": "YD-C-2019-T03W1-2",
+    "rows": [
+      {
+        "day": "thu",
+        "time": "10:45",
+        "name": "ፍቅርተ ወልዴ",
+        "phone": "0963992449",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "4:30",
+        "name": "Yohannes G.",
+        "phone": "0962110350",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "8:45",
+        "name": "መሰረት ዓለሙ",
+        "phone": "0974650116",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "fri",
+        "time": "8:15",
+        "name": "ሐና ታደሰ",
+        "phone": "0968822212",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "fri",
+        "time": "10:45",
+        "name": "አበበ ከበደ",
+        "phone": "0903756300",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "fri",
+        "time": "9:45",
+        "name": "ትዕግስት በቀለ",
+        "phone": "0911387188",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "fri",
+        "time": "8:00",
+        "name": "ዮሐንስ ገብሩ",
+        "phone": "0902817030",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "fri",
+        "time": "4:00",
+        "name": "ፍቅርተ ወልዴ",
+        "phone": "0922037840",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "11:30",
+        "name": "ፍቅርተ ወልዴ",
+        "phone": "0982357679",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "8:00",
+        "name": "ሰላም ኃይሌ",
+        "phone": "0932815732",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "fri",
+        "time": "11:00",
+        "name": "ሐና ታደሰ",
+        "phone": "0971416512",
+        "code": "CL",
+        "confidence": 1
+      }
+    ]
+  }
+}

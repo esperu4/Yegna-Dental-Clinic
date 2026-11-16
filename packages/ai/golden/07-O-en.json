@@ -1,0 +1,137 @@
+{
+  "image": "07-O-en.jpg",
+  "mime": "image/jpeg",
+  "template": "O",
+  "locale": "en",
+  "procedures": [
+    {
+      "code": "CL",
+      "name": "Cleaning"
+    },
+    {
+      "code": "EX",
+      "name": "Extraction"
+    },
+    {
+      "code": "FL",
+      "name": "Filling"
+    },
+    {
+      "code": "CH",
+      "name": "Check-up"
+    }
+  ],
+  "expected": {
+    "sheetId": "YD-O-2019-T03",
+    "rows": [
+      {
+        "day": "21",
+        "time": "10:00",
+        "name": "Meseret A.",
+        "confidence": 1
+      },
+      {
+        "day": "18",
+        "time": "8:00",
+        "name": "Yohannes G.",
+        "confidence": 1
+      },
+      {
+        "day": "9",
+        "time": "8:00",
+        "name": "አበበ ከበደ",
+        "confidence": 1
+      },
+      {
+        "day": "28",
+        "time": "10:00",
+        "name": "Biruk D.",
+        "confidence": 1
+      },
+      {
+        "day": "26",
+        "time": "11:30",
+        "name": "ሐና ታደሰ",
+        "confidence": 1
+      },
+      {
+        "day": "4",
+        "time": "8:00",
+        "name": "ሰላም ኃይሌ",
+        "confidence": 1
+      },
+      {
+        "day": "11",
+        "time": "6:30",
+        "name": "Biruk D.",
+        "confidence": 1
+      },
+      {
+        "day": "1",
+        "time": "11:30",
+        "name": "Selam H.",
+        "confidence": 1
+      },
+      {
+        "day": "7",
+        "time": "3:15",
+        "name": "ዳዊት አሰፋ",
+        "confidence": 1
+      },
+      {
+        "day": "12",
+        "time": "9:00",
+        "name": "Biruk D.",
+        "confidence": 1
+      },
+      {
+        "day": "26",
+        "time": "5:15",
+        "name": "ትዕግስት በቀለ",
+        "confidence": 1
+      },
+      {
+        "day": "15",
+        "time": "9:00",
+        "name": "Biruk D.",
+        "confidence": 1
+      },
+      {
+        "day": "19",
+        "time": "6:30",
+        "name": "Liya W.",
+        "confidence": 1
+      },
+      {
+        "day": "11",
+        "time": "11:45",
+        "name": "Biruk D.",
+        "confidence": 1
+      },
+      {
+        "day": "4",
+        "time": "6:30",
+        "name": "Abebe K.",
+        "confidence": 1
+      },
+      {
+        "day": "8",
+        "time": "11:00",
+        "name": "ትዕግስት በቀለ",
+        "confidence": 1
+      },
+      {
+        "day": "23",
+        "time": "8:15",
+        "name": "አበበ ከበደ",
+        "confidence": 1
+      },
+      {
+        "day": "1",
+        "time": "3:15",
+        "name": "Dawit A.",
+        "confidence": 1
+      }
+    ]
+  }
+}

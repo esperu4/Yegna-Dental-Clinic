@@ -1,0 +1,184 @@
+{
+  "image": "02-F-en.jpg",
+  "mime": "image/jpeg",
+  "template": "F",
+  "locale": "en",
+  "procedures": [
+    {
+      "code": "CL",
+      "name": "Cleaning"
+    },
+    {
+      "code": "EX",
+      "name": "Extraction"
+    },
+    {
+      "code": "FL",
+      "name": "Filling"
+    },
+    {
+      "code": "CH",
+      "name": "Check-up"
+    }
+  ],
+  "expected": {
+    "sheetId": "YD-F-2019-T03W1",
+    "rows": [
+      {
+        "day": "fri",
+        "time": "4:30",
+        "name": "Selam H.",
+        "phone": "0985932398",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "8:30",
+        "name": "Biruk D.",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "4:00",
+        "name": "Abebe K.",
+        "phone": "0901060133",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "wed",
+        "time": "9:00",
+        "name": "Tigist B.",
+        "phone": "0998090086",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "wed",
+        "time": "11:00",
+        "name": "Biruk D.",
+        "phone": "0922046092",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "4:00",
+        "name": "Tigist B.",
+        "phone": "0992308008",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "3:00",
+        "name": "ብርሃኑ ደስታ",
+        "phone": "0903586654",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "5:30",
+        "name": "Marta G.",
+        "phone": "0992170160",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "7:45",
+        "name": "Meseret A.",
+        "phone": "0983836219",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "9:00",
+        "name": "Dawit A.",
+        "phone": "0967439255",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "11:00",
+        "name": "Liya W.",
+        "phone": "0920975277",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "4:30",
+        "name": "Liya W.",
+        "phone": "0907033470",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "9:30",
+        "name": "መሰረት ዓለሙ",
+        "phone": "0906971467",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "fri",
+        "time": "4:45",
+        "name": "ማርታ ጌታቸው",
+        "phone": "0941736707",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "3:30",
+        "name": "Meseret A.",
+        "phone": "0942186702",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "11:00",
+        "name": "መሰረት ዓለሙ",
+        "phone": "0941877254",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "5:15",
+        "name": "ሐና ታደሰ",
+        "phone": "0909909694",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "wed",
+        "time": "11:30",
+        "name": "ብርሃኑ ደስታ",
+        "phone": "0940184429",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "11:30",
+        "name": "Biruk D.",
+        "phone": "0910173974",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "8:30",
+        "name": "Abebe K.",
+        "phone": "0963184104",
+        "code": "EX",
+        "confidence": 1
+      }
+    ]
+  }
+}

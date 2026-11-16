@@ -1,0 +1,95 @@
+{
+  "image": "05-C-en1.jpg",
+  "mime": "image/jpeg",
+  "template": "C",
+  "locale": "en",
+  "procedures": [
+    {
+      "code": "CL",
+      "name": "Cleaning"
+    },
+    {
+      "code": "EX",
+      "name": "Extraction"
+    },
+    {
+      "code": "FL",
+      "name": "Filling"
+    },
+    {
+      "code": "CH",
+      "name": "Check-up"
+    }
+  ],
+  "expected": {
+    "sheetId": "YD-C-2019-T03W1-1",
+    "rows": [
+      {
+        "day": "tue",
+        "time": "4:30",
+        "name": "Marta G.",
+        "phone": "0965995673",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "8:30",
+        "name": "ሐና ታደሰ",
+        "phone": "0951289673",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "5:45",
+        "name": "Marta G.",
+        "phone": "0975991326",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "11:45",
+        "name": "Marta G.",
+        "phone": "0994474528",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "11:15",
+        "name": "Selam H.",
+        "phone": "0952219168",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "9:30",
+        "name": "Meseret A.",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "10:45",
+        "name": "ትዕግስት በቀለ",
+        "phone": "0982781502",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "9:00",
+        "name": "Yohannes G.",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "7:30",
+        "name": "Yohannes G.",
+        "phone": "0945338628",
+        "code": "CL",
+        "confidence": 1
+      }
+    ]
+  }
+}

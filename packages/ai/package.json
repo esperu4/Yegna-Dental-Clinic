@@ -8,9 +8,14 @@
   },
   "scripts": {
     "typecheck": "tsc -p .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval:imports": "node --experimental-transform-types --no-warnings scripts/eval-imports.ts"
   },
   "dependencies": {
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "wrangler": "4.158.0"
   }
 }

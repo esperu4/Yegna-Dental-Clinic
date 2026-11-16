@@ -1,0 +1,112 @@
+{
+  "image": "06-C-am1.jpg",
+  "mime": "image/jpeg",
+  "template": "C",
+  "locale": "am",
+  "procedures": [
+    {
+      "code": "CL",
+      "name": "ማጽዳት"
+    },
+    {
+      "code": "EX",
+      "name": "መንቀል"
+    },
+    {
+      "code": "FL",
+      "name": "መሙላት"
+    },
+    {
+      "code": "CH",
+      "name": "ምርመራ"
+    }
+  ],
+  "expected": {
+    "sheetId": "YD-C-2019-T03W1-1",
+    "rows": [
+      {
+        "day": "wed",
+        "time": "9:45",
+        "name": "ዳዊት አሰፋ",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "wed",
+        "time": "8:30",
+        "name": "ዮሐንስ ገብሩ",
+        "phone": "0921816955",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "3:00",
+        "name": "Biruk D.",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "11:30",
+        "name": "ማርታ ጌታቸው",
+        "phone": "0912052936",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "7:30",
+        "name": "ማርታ ጌታቸው",
+        "phone": "0932903031",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "8:15",
+        "name": "ዳዊት አሰፋ",
+        "phone": "0918226811",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "wed",
+        "time": "11:45",
+        "name": "ዮሐንስ ገብሩ",
+        "phone": "0925173215",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "wed",
+        "time": "11:00",
+        "name": "ዳዊት አሰፋ",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "4:45",
+        "name": "ዳዊት አሰፋ",
+        "phone": "0983688802",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "7:15",
+        "name": "ብርሃኑ ደስታ",
+        "phone": "0969046880",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "wed",
+        "time": "9:45",
+        "name": "ዳዊት አሰፋ",
+        "phone": "0927593204",
+        "code": "FL",
+        "confidence": 1
+      }
+    ]
+  }
+}

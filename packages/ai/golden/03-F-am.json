@@ -1,0 +1,152 @@
+{
+  "image": "03-F-am.jpg",
+  "mime": "image/jpeg",
+  "template": "F",
+  "locale": "am",
+  "procedures": [
+    {
+      "code": "CL",
+      "name": "ማጽዳት"
+    },
+    {
+      "code": "EX",
+      "name": "መንቀል"
+    },
+    {
+      "code": "FL",
+      "name": "መሙላት"
+    },
+    {
+      "code": "CH",
+      "name": "ምርመራ"
+    }
+  ],
+  "expected": {
+    "sheetId": "YD-F-2019-T03W1",
+    "rows": [
+      {
+        "day": "fri",
+        "time": "8:30",
+        "name": "ሰላም ኃይሌ",
+        "phone": "0993909949",
+        "confidence": 1
+      },
+      {
+        "day": "fri",
+        "time": "4:00",
+        "name": "ሰላም ኃይሌ",
+        "phone": "0936351006",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "5:30",
+        "name": "ፍቅርተ ወልዴ",
+        "phone": "0953267147",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "10:30",
+        "name": "Abebe K.",
+        "phone": "0978832264",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "3:00",
+        "name": "ዮሐንስ ገብሩ",
+        "phone": "0988369024",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "10:15",
+        "name": "አበበ ከበደ",
+        "phone": "0981991834",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "9:00",
+        "name": "Dawit A.",
+        "phone": "0917299039",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "7:00",
+        "name": "ማርታ ጌታቸው",
+        "phone": "0917924115",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "7:00",
+        "name": "ትዕግስት በቀለ",
+        "phone": "0968837930",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "10:45",
+        "name": "ትዕግስት በቀለ",
+        "phone": "0931895645",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "4:30",
+        "name": "Biruk D.",
+        "phone": "0998330833",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "10:00",
+        "name": "ዮሐንስ ገብሩ",
+        "phone": "0909590317",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "wed",
+        "time": "3:30",
+        "name": "መሰረት ዓለሙ",
+        "phone": "0948165178",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "11:00",
+        "name": "ዮሐንስ ገብሩ",
+        "phone": "0980048532",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "7:15",
+        "name": "ፍቅርተ ወልዴ",
+        "phone": "0902979518",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "8:45",
+        "name": "ዳዊት አሰፋ",
+        "phone": "0945571324",
+        "code": "FL",
+        "confidence": 1
+      }
+    ]
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "image": "05-C-en2.jpg",
+  "mime": "image/jpeg",
+  "template": "C",
+  "locale": "en",
+  "procedures": [
+    {
+      "code": "CL",
+      "name": "Cleaning"
+    },
+    {
+      "code": "EX",
+      "name": "Extraction"
+    },
+    {
+      "code": "FL",
+      "name": "Filling"
+    },
+    {
+      "code": "CH",
+      "name": "Check-up"
+    }
+  ],
+  "expected": {
+    "sheetId": "YD-C-2019-T03W1-2",
+    "rows": [
+      {
+        "day": "thu",
+        "time": "4:00",
+        "name": "አበበ ከበደ",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "8:00",
+        "name": "Biruk D.",
+        "phone": "0934730205",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "8:15",
+        "name": "ሰላም ኃይሌ",
+        "phone": "0964529349",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "10:15",
+        "name": "ዮሐንስ ገብሩ",
+        "phone": "0901244208",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "3:00",
+        "name": "ብርሃኑ ደስታ",
+        "phone": "0980304635",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "4:15",
+        "name": "Biruk D.",
+        "phone": "0901668898",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "11:30",
+        "name": "ፍቅርተ ወልዴ",
+        "phone": "0972588972",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "9:45",
+        "name": "አበበ ከበደ",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "fri",
+        "time": "5:00",
+        "name": "ፍቅርተ ወልዴ",
+        "phone": "0943663733",
+        "code": "CL",
+        "confidence": 1
+      }
+    ]
+  }
+}

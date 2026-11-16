@@ -1,0 +1,7 @@
+// Only for `pnpm eval:imports --workers-ai`: the Workers AI binding, reached remotely through
+// `wrangler login`. Not deployed.
+{
+  "name": "yegna-eval-imports",
+  "compatibility_date": "2026-11-01",
+  "ai": { "binding": "AI", "remote": true },
+}

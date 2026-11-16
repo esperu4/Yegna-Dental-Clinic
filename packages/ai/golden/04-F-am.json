@@ -1,0 +1,106 @@
+{
+  "image": "04-F-am.jpg",
+  "mime": "image/jpeg",
+  "template": "F",
+  "locale": "am",
+  "procedures": [
+    {
+      "code": "CL",
+      "name": "ማጽዳት"
+    },
+    {
+      "code": "EX",
+      "name": "መንቀል"
+    },
+    {
+      "code": "FL",
+      "name": "መሙላት"
+    },
+    {
+      "code": "CH",
+      "name": "ምርመራ"
+    }
+  ],
+  "expected": {
+    "sheetId": "YD-F-2019-T03W1",
+    "rows": [
+      {
+        "day": "sat",
+        "time": "9:30",
+        "name": "Dawit A.",
+        "phone": "0960554356",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "wed",
+        "time": "9:45",
+        "name": "ብርሃኑ ደስታ",
+        "phone": "0961752993",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "4:45",
+        "name": "መሰረት ዓለሙ",
+        "phone": "0919596567",
+        "code": "CH",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "3:30",
+        "name": "ማርታ ጌታቸው",
+        "phone": "0974895879",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "3:00",
+        "name": "Liya W.",
+        "phone": "0910601943",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "8:30",
+        "name": "ዳዊት አሰፋ",
+        "phone": "0924912560",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "fri",
+        "time": "5:45",
+        "name": "ብርሃኑ ደስታ",
+        "phone": "0984425703",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "4:30",
+        "name": "ፍቅርተ ወልዴ",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "7:45",
+        "name": "ብርሃኑ ደስታ",
+        "phone": "0933096542",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "9:45",
+        "name": "Marta G.",
+        "code": "CH",
+        "confidence": 1
+      }
+    ]
+  }
+}

@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r --parallel typecheck",
     "test": "pnpm -r test",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build",
+    "eval:imports": "pnpm --filter @yegna/ai eval:imports"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

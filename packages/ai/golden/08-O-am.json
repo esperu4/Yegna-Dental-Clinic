@@ -1,0 +1,113 @@
+{
+  "image": "08-O-am.jpg",
+  "mime": "image/jpeg",
+  "template": "O",
+  "locale": "am",
+  "procedures": [
+    {
+      "code": "CL",
+      "name": "ማጽዳት"
+    },
+    {
+      "code": "EX",
+      "name": "መንቀል"
+    },
+    {
+      "code": "FL",
+      "name": "መሙላት"
+    },
+    {
+      "code": "CH",
+      "name": "ምርመራ"
+    }
+  ],
+  "expected": {
+    "sheetId": "YD-O-2019-T03",
+    "rows": [
+      {
+        "day": "29",
+        "time": "9:45",
+        "name": "አበበ ከበደ",
+        "confidence": 1
+      },
+      {
+        "day": "17",
+        "time": "10:45",
+        "name": "ፍቅርተ ወልዴ",
+        "confidence": 1
+      },
+      {
+        "day": "22",
+        "time": "4:00",
+        "name": "ሐና ታደሰ",
+        "confidence": 1
+      },
+      {
+        "day": "4",
+        "time": "3:00",
+        "name": "ዮሐንስ ገብሩ",
+        "confidence": 1
+      },
+      {
+        "day": "17",
+        "time": "7:45",
+        "name": "Biruk D.",
+        "confidence": 1
+      },
+      {
+        "day": "16",
+        "time": "3:00",
+        "name": "መሰረት ዓለሙ",
+        "confidence": 1
+      },
+      {
+        "day": "16",
+        "time": "5:00",
+        "name": "ሰላም ኃይሌ",
+        "confidence": 1
+      },
+      {
+        "day": "7",
+        "time": "11:30",
+        "name": "ትዕግስት በቀለ",
+        "confidence": 1
+      },
+      {
+        "day": "24",
+        "time": "4:15",
+        "name": "ሐና ታደሰ",
+        "confidence": 1
+      },
+      {
+        "day": "18",
+        "time": "10:45",
+        "name": "Yohannes G.",
+        "confidence": 1
+      },
+      {
+        "day": "28",
+        "time": "9:00",
+        "name": "ዮሐንስ ገብሩ",
+        "confidence": 1
+      },
+      {
+        "day": "10",
+        "time": "3:00",
+        "name": "ፍቅርተ ወልዴ",
+        "confidence": 1
+      },
+      {
+        "day": "5",
+        "time": "3:00",
+        "name": "ብርሃኑ ደስታ",
+        "confidence": 1
+      },
+      {
+        "day": "19",
+        "time": "10:15",
+        "name": "ሰላም ኃይሌ",
+        "confidence": 1
+      }
+    ]
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "image": "01-F-en.jpg",
+  "mime": "image/jpeg",
+  "template": "F",
+  "locale": "en",
+  "procedures": [
+    {
+      "code": "CL",
+      "name": "Cleaning"
+    },
+    {
+      "code": "EX",
+      "name": "Extraction"
+    },
+    {
+      "code": "FL",
+      "name": "Filling"
+    },
+    {
+      "code": "CH",
+      "name": "Check-up"
+    }
+  ],
+  "expected": {
+    "sheetId": "YD-F-2019-T03W1",
+    "rows": [
+      {
+        "day": "tue",
+        "time": "11:30",
+        "name": "Dawit A.",
+        "phone": "0996606339",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "9:30",
+        "name": "Meseret A.",
+        "phone": "0955497930",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "10:30",
+        "name": "Tigist B.",
+        "phone": "0985947642",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "10:15",
+        "name": "Dawit A.",
+        "phone": "0976118058",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "wed",
+        "time": "9:00",
+        "name": "ዳዊት አሰፋ",
+        "phone": "0937319088",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "10:30",
+        "name": "Yohannes G.",
+        "phone": "0909008485",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "8:30",
+        "name": "Selam H.",
+        "phone": "0948309953",
+        "confidence": 1
+      },
+      {
+        "day": "tue",
+        "time": "3:15",
+        "name": "Meseret A.",
+        "phone": "0914243809",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "fri",
+        "time": "8:15",
+        "name": "ዳዊት አሰፋ",
+        "phone": "0986455524",
+        "code": "FL",
+        "confidence": 1
+      },
+      {
+        "day": "fri",
+        "time": "9:30",
+        "name": "Biruk D.",
+        "phone": "0926943501",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "3:30",
+        "name": "ሐና ታደሰ",
+        "phone": "0907121615",
+        "confidence": 1
+      },
+      {
+        "day": "thu",
+        "time": "9:00",
+        "name": "ትዕግስት በቀለ",
+        "phone": "0922648539",
+        "code": "CL",
+        "confidence": 1
+      },
+      {
+        "day": "sat",
+        "time": "7:30",
+        "name": "Biruk D.",
+        "code": "EX",
+        "confidence": 1
+      },
+      {
+        "day": "mon",
+        "time": "8:30",
+        "name": "Tigist B.",
+        "code": "CH",
+        "confidence": 1
+      }
+    ]
+  }
+}
