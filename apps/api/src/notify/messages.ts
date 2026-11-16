@@ -153,6 +153,26 @@ export function patientRequestAlert(
   };
 }
 
+/** The nightly backup failed (PRD §17): to the Doctor, once a day; it is retried each hour. */
+export function backupFailed(r: Recipient): OutgoingMessage {
+  return {
+    text: say(
+      r,
+      '⚠️ የዛሬው ምትኬ (backup) ወደ Google Drive አልተላከም። በየሰዓቱ እንደገና ይሞከራል። ካልተሳካ የቴክኒክ ባለሙያውን ያነጋግሩ።',
+      '⚠️ Tonight’s backup to Google Drive failed. It is retried every hour. If this keeps happening, contact your technical person.',
+    ),
+  };
+}
+
+/** Caption of the weekly CSV files (Sunday, PRD §17.3). */
+export function weeklyCsvCaption(r: Recipient, localDate: string): string {
+  return say(
+    r,
+    `📊 ሳምንታዊ ዝርዝር (${dateOf(r, localDate)}): ታካሚዎች እና የ8 ሳምንት ቀጠሮዎች ወደኋላና ወደፊት።`,
+    `📊 Weekly export (${dateOf(r, localDate)}): patients, and bookings 8 weeks back and ahead.`,
+  );
+}
+
 export function tomorrowSummary(
   r: Recipient,
   localDate: string,
@@ -181,12 +201,18 @@ export function tomorrowSummary(
 
 export function callListMessage(
   r: Recipient,
-  items: { booking: BookingLine; noTelegram: boolean; unapproved: boolean }[],
+  items: {
+    booking: BookingLine;
+    noTelegram: boolean;
+    unapproved: boolean;
+    reschedule?: boolean;
+    cancel?: boolean;
+  }[],
   pwaUrl: string,
 ): OutgoingMessage {
   const lines = items.map(
-    ({ booking, noTelegram, unapproved }) =>
-      `${noTelegram ? '📵 ' : ''}${unapproved ? '⏳ ' : ''}${line(r, booking, true)}`,
+    ({ booking, noTelegram, unapproved, reschedule, cancel }) =>
+      `${noTelegram ? '📵 ' : ''}${unapproved ? '⏳ ' : ''}${reschedule ? '🔁 ' : ''}${cancel ? '❌ ' : ''}${line(r, booking, true)}`,
   );
   return {
     text: [

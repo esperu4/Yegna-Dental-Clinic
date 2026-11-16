@@ -473,6 +473,25 @@ describe('reminder buttons (PRD §14)', () => {
     expect(texts(current)[0]).toMatch(/Thank you/);
   });
 
+  it('an open request joins the 18:00 call list message; erasing the patient closes it', async () => {
+    await botReceives(tap(PATIENT_CHAT, button('x')), { team: new FakeTelegram() });
+    const team = new FakeTelegram();
+    await runHourly(env, at(addDays(localDateOf(Date.now()), 0), 18, 30), team, new FakeTelegram());
+    const list = team.to(TEAM_CHAT, '📞');
+    expect(list).toHaveLength(1);
+    expect(list[0]!.message.text).toMatch(/❌ .*Abebe Kebede/);
+    const version = (await env.DB.prepare('SELECT version FROM patients WHERE id = ?')
+      .bind(patientId)
+      .first<{ version: number }>())!.version;
+    await sync(doctor, [op(doctor, 'patients', patientId, 'delete', {}, version)]);
+    const open = await env.DB.prepare(
+      "SELECT count(*) AS n FROM patient_requests WHERE status = 'open'",
+    ).first<{
+      n: number;
+    }>();
+    expect(open!.n).toBe(0);
+  });
+
   it('a handled request is not reopened by more taps', async () => {
     const team = new FakeTelegram();
     await botReceives(tap(PATIENT_CHAT, button('r')), { team });

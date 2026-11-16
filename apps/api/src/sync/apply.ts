@@ -143,6 +143,11 @@ function erasePatientTraces(patientId: string, ctx: OpContext) {
       WHERE entity = 'bookings' AND diff IS NOT NULL AND ${landed}
         AND (entity_id IN (SELECT id FROM bookings WHERE patient_id = ${patientId})
           OR json_extract(diff, '$.fields.patientId') = ${patientId})`,
+    // Their open patient requests close: nobody can call an erased patient (ADR 0007).
+    sql`UPDATE patient_requests
+      SET status = 'handled', handled_by = ${ctx.session.user.id}, version = ${CURRENT_VERSION},
+          updated_at = ${ctx.now}, updated_by = ${ctx.session.user.id}
+      WHERE patient_id = ${patientId} AND status = 'open' AND ${landed}`,
     // Which Telegram chat was told about which booking (patient bot, M5).
     sql`DELETE FROM notification_log
       WHERE kind IN ('patient_confirm', 'patient_reminder', 'patient_cancel') AND ${landed}

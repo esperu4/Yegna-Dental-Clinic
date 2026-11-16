@@ -3,12 +3,13 @@
  * data what is due, and sends through `deliverOnce`, so a job run twice (or an hour late) sends
  * nothing twice. Jobs stop early when the run's D1 query budget runs low; the next hour continues.
  */
-import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, or } from 'drizzle-orm';
 import {
   bookings,
   importRows,
   imports,
   notificationLog,
+  patientRequests,
   patients,
   procedures,
   settings,
@@ -17,6 +18,7 @@ import {
 } from '@yegna/db';
 import {
   type BookingRow,
+  type PatientRequestRow,
   type PatientRow,
   SETTINGS_ID,
   UNAPPROVED_ALERT_MS,
@@ -261,18 +263,33 @@ export async function tomorrowSummaries(ctx: JobContext, team: Recipient[]) {
 export async function callListMessages(ctx: JobContext, team: Recipient[]) {
   if (team.length === 0 || ctx.local.minutes < 18 * 60) return;
   const [from, to] = callListRange(ctx.now);
-  const rows = await bookingsWhere(ctx.db, gte(bookings.startAt, from), lt(bookings.startAt, to));
+  // Open patient requests (PRD §14) are listed whatever their booking's date.
+  const requests = await ctx.db
+    .select()
+    .from(patientRequests)
+    .where(and(eq(patientRequests.status, 'open'), isNull(patientRequests.deletedAt)))
+    .all();
+  const requested = [...new Set(requests.map((r) => r.bookingId))];
+  const rows = await bookingsWhere(
+    ctx.db,
+    requested.length
+      ? or(and(gte(bookings.startAt, from), lt(bookings.startAt, to)), inArray(bookings.id, requested))
+      : and(gte(bookings.startAt, from), lt(bookings.startAt, to)),
+  );
   const byId = new Map(rows.map((b) => [b.id, b]));
   const items = callList(
     rows.map((b) => asBookingRow(b)),
     new Map(rows.map((b) => [b.patientId, asPatientRow(b)])),
     ctx.now,
+    requests as PatientRequestRow[],
   );
   if (items.length === 0) return;
   const lines = items.map((i) => ({
     booking: lineOf(byId.get(i.booking.id)!),
     noTelegram: i.reasons.includes('noTelegram'),
     unapproved: i.reasons.includes('unapproved'),
+    reschedule: i.reasons.includes('rescheduleRequest'),
+    cancel: i.reasons.includes('cancelRequest'),
   }));
   for (const r of team) {
     if (!hasBudget(ctx)) return;
